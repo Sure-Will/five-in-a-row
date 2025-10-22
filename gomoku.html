@@ -26,7 +26,7 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 30px;
-            max-width: 800px;
+            max-width: 850px;
         }
 
         h1 {
@@ -41,6 +41,63 @@
             color: #666;
             margin-bottom: 20px;
             font-size: 1.1em;
+        }
+
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .mode-btn {
+            padding: 12px 24px;
+            font-size: 1.1em;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .difficulty-selector {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .diff-btn {
+            padding: 8px 16px;
+            font-size: 0.95em;
+            border: 2px solid #4caf50;
+            background: white;
+            color: #4caf50;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .diff-btn.active {
+            background: #4caf50;
+            color: white;
+        }
+
+        .diff-btn:hover {
+            transform: translateY(-2px);
         }
 
         .game-info {
@@ -173,6 +230,14 @@
             line-height: 1.8;
         }
 
+        .ai-thinking {
+            text-align: center;
+            font-size: 1.1em;
+            color: #ff9800;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
         @media (max-width: 600px) {
             .container {
                 padding: 15px;
@@ -191,6 +256,10 @@
                 flex-wrap: wrap;
                 justify-content: center;
             }
+
+            .mode-selector {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -198,6 +267,18 @@
     <div class="container">
         <h1>🎮 五子棋</h1>
         <p class="subtitle">Gomoku / Five in a Row</p>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setGameMode('pvp')">👥 双人对战</button>
+            <button class="mode-btn" onclick="setGameMode('ai')">🤖 AI对战</button>
+        </div>
+
+        <div class="difficulty-selector" id="difficultySelector" style="display: none;">
+            <span style="font-weight: bold; margin-right: 10px;">AI难度：</span>
+            <button class="diff-btn active" onclick="setDifficulty('easy')">简单</button>
+            <button class="diff-btn" onclick="setDifficulty('medium')">中等</button>
+            <button class="diff-btn" onclick="setDifficulty('hard')">困难</button>
+        </div>
 
         <div class="game-info">
             <div class="current-player" id="currentPlayer">
@@ -209,6 +290,8 @@
                 <button class="btn-size" id="sizeBtn" onclick="changeBoardSize()">📏 改变棋盘</button>
             </div>
         </div>
+
+        <div class="ai-thinking" id="aiThinking" style="display: none;">🤖 AI思考中...</div>
 
         <div class="winner-message" id="winnerMessage"></div>
 
@@ -222,21 +305,23 @@
                 <li>黑棋先行，白棋后行</li>
                 <li>点击棋盘空白处落子</li>
                 <li>先将五个棋子连成一线者获胜（横、竖、斜均可）</li>
-                <li>可以使用悔棋功能撤销上一步</li>
+                <li>AI对战模式下，你执黑棋先行</li>
             </ul>
         </div>
     </div>
 
     <script>
         class GomokuGame {
-            constructor(boardSize = 15) {
+            constructor(boardSize = 15, gameMode = 'pvp', difficulty = 'medium') {
                 this.boardSize = boardSize;
                 this.cellSize = Math.min(500 / boardSize, 40);
                 this.board = Array(boardSize).fill(null).map(() => Array(boardSize).fill(0));
-                this.currentPlayer = 1; // 1 = 黑棋, 2 = 白棋
+                this.currentPlayer = 1; // 1 = 黑棋/玩家, 2 = 白棋/AI
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
+                this.gameMode = gameMode; // 'pvp' or 'ai'
+                this.difficulty = difficulty; // 'easy', 'medium', 'hard'
 
                 this.canvas = document.getElementById('gameBoard');
                 this.ctx = this.canvas.getContext('2d');
@@ -345,6 +430,7 @@
             setupEventListeners() {
                 this.canvas.addEventListener('click', (e) => {
                     if (this.gameOver) return;
+                    if (this.gameMode === 'ai' && this.currentPlayer === 2) return; // AI回合不允许玩家下
 
                     const rect = this.canvas.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -381,9 +467,222 @@
                 } else {
                     this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
                     this.updateCurrentPlayer();
+
+                    // AI模式下，如果轮到AI，让AI下棋
+                    if (this.gameMode === 'ai' && this.currentPlayer === 2) {
+                        this.aiMove();
+                    }
                 }
 
                 document.getElementById('undoBtn').disabled = false;
+            }
+
+            aiMove() {
+                document.getElementById('aiThinking').style.display = 'block';
+
+                // 延迟执行，让"AI思考中"提示显示出来
+                setTimeout(() => {
+                    let move;
+
+                    if (this.difficulty === 'easy') {
+                        move = this.getRandomMove();
+                    } else if (this.difficulty === 'medium') {
+                        move = this.getMediumMove();
+                    } else {
+                        move = this.getHardMove();
+                    }
+
+                    if (move) {
+                        document.getElementById('aiThinking').style.display = 'none';
+                        this.makeMove(move.row, move.col);
+                    }
+                }, 500); // 0.5秒延迟，让AI看起来在思考
+            }
+
+            // 简单AI：随机选择
+            getRandomMove() {
+                const emptyPositions = [];
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (this.board[i][j] === 0) {
+                            emptyPositions.push({ row: i, col: j });
+                        }
+                    }
+                }
+
+                if (emptyPositions.length > 0) {
+                    return emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
+                }
+                return null;
+            }
+
+            // 中等AI：基于简单评分
+            getMediumMove() {
+                let bestScore = -1;
+                let bestMove = null;
+
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (this.board[i][j] === 0) {
+                            const score = this.evaluatePosition(i, j);
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMove = { row: i, col: j };
+                            }
+                        }
+                    }
+                }
+
+                return bestMove;
+            }
+
+            // 困难AI：更智能的评分系统
+            getHardMove() {
+                let bestScore = -Infinity;
+                let bestMove = null;
+
+                // 先检查是否有必胜的一手
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (this.board[i][j] === 0) {
+                            // 尝试下这一步
+                            this.board[i][j] = 2; // AI是2
+                            if (this.checkWin(i, j)) {
+                                this.board[i][j] = 0; // 恢复
+                                return { row: i, col: j }; // 直接获胜
+                            }
+                            this.board[i][j] = 0; // 恢复
+                        }
+                    }
+                }
+
+                // 检查是否需要防守（对手是否有必胜的一手）
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (this.board[i][j] === 0) {
+                            this.board[i][j] = 1; // 玩家是1
+                            if (this.checkWin(i, j)) {
+                                this.board[i][j] = 0; // 恢复
+                                return { row: i, col: j }; // 必须防守
+                            }
+                            this.board[i][j] = 0; // 恢复
+                        }
+                    }
+                }
+
+                // 否则选择评分最高的位置
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        if (this.board[i][j] === 0) {
+                            const score = this.evaluatePositionAdvanced(i, j);
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMove = { row: i, col: j };
+                            }
+                        }
+                    }
+                }
+
+                return bestMove || this.getRandomMove();
+            }
+
+            // 简单评分函数
+            evaluatePosition(row, col) {
+                let score = 0;
+
+                // 检查周围是否有棋子
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        const newRow = row + i;
+                        const newCol = col + j;
+                        if (newRow >= 0 && newRow < this.boardSize &&
+                            newCol >= 0 && newCol < this.boardSize) {
+                            if (this.board[newRow][newCol] !== 0) {
+                                score += 1;
+                            }
+                        }
+                    }
+                }
+
+                return score;
+            }
+
+            // 高级评分函数
+            evaluatePositionAdvanced(row, col) {
+                let score = 0;
+                const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+                for (let [dr, dc] of directions) {
+                    // 评估AI的进攻分数
+                    const aiScore = this.evaluateLine(row, col, dr, dc, 2);
+                    score += aiScore;
+
+                    // 评估玩家的威胁（防守分数）
+                    const playerScore = this.evaluateLine(row, col, dr, dc, 1);
+                    score += playerScore * 0.9; // 稍微降低防守权重
+                }
+
+                // 中心位置加分
+                const center = Math.floor(this.boardSize / 2);
+                const distToCenter = Math.abs(row - center) + Math.abs(col - center);
+                score += (this.boardSize - distToCenter) * 0.5;
+
+                return score;
+            }
+
+            // 评估某个方向上的连珠情况
+            evaluateLine(row, col, dr, dc, player) {
+                let count = 0;
+                let empty = 0;
+                let blocked = 0;
+
+                // 正方向
+                for (let i = 1; i <= 4; i++) {
+                    const r = row + dr * i;
+                    const c = col + dc * i;
+                    if (r < 0 || r >= this.boardSize || c < 0 || c >= this.boardSize) {
+                        blocked++;
+                        break;
+                    }
+                    if (this.board[r][c] === player) {
+                        count++;
+                    } else if (this.board[r][c] === 0) {
+                        empty++;
+                        break;
+                    } else {
+                        blocked++;
+                        break;
+                    }
+                }
+
+                // 反方向
+                for (let i = 1; i <= 4; i++) {
+                    const r = row - dr * i;
+                    const c = col - dc * i;
+                    if (r < 0 || r >= this.boardSize || c < 0 || c >= this.boardSize) {
+                        blocked++;
+                        break;
+                    }
+                    if (this.board[r][c] === player) {
+                        count++;
+                    } else if (this.board[r][c] === 0) {
+                        empty++;
+                        break;
+                    } else {
+                        blocked++;
+                        break;
+                    }
+                }
+
+                // 根据连珠数和开放程度评分
+                if (count >= 4) return 100000; // 成五
+                if (count === 3 && blocked === 0) return 10000; // 活四
+                if (count === 3 && blocked === 1) return 1000; // 冲四
+                if (count === 2 && blocked === 0) return 1000; // 活三
+                if (count === 2 && blocked === 1) return 100; // 眠三
+                if (count === 1 && blocked === 0) return 10; // 活二
+
+                return count;
             }
 
             checkWin(row, col) {
@@ -436,14 +735,27 @@
             }
 
             updateCurrentPlayer() {
-                const playerText = this.currentPlayer === 1
-                    ? '<span class="player-black">● 黑棋</span>'
-                    : '<span class="player-white">○ 白棋</span>';
+                let playerText;
+                if (this.gameMode === 'pvp') {
+                    playerText = this.currentPlayer === 1
+                        ? '<span class="player-black">● 黑棋</span>'
+                        : '<span class="player-white">○ 白棋</span>';
+                } else {
+                    playerText = this.currentPlayer === 1
+                        ? '<span class="player-black">● 你（黑棋）</span>'
+                        : '<span class="player-white">○ AI（白棋）</span>';
+                }
                 document.getElementById('currentPlayer').innerHTML = '当前玩家：' + playerText;
             }
 
             showWinner() {
-                const playerName = this.winner === 1 ? '黑棋' : '白棋';
+                let playerName;
+                if (this.gameMode === 'pvp') {
+                    playerName = this.winner === 1 ? '黑棋' : '白棋';
+                } else {
+                    playerName = this.winner === 1 ? '你' : 'AI';
+                }
+
                 const message = document.getElementById('winnerMessage');
                 message.innerHTML = `🎉 恭喜！${playerName} 获胜！`;
                 message.className = 'winner-message show';
@@ -462,13 +774,20 @@
                     return false;
                 }
 
-                const lastMove = this.moveHistory.pop();
-                this.board[lastMove.row][lastMove.col] = 0;
-                this.currentPlayer = lastMove.player;
+                // AI模式下，撤销两步（玩家和AI各一步）
+                const steps = this.gameMode === 'ai' ? 2 : 1;
+
+                for (let i = 0; i < steps && this.moveHistory.length > 0; i++) {
+                    const lastMove = this.moveHistory.pop();
+                    this.board[lastMove.row][lastMove.col] = 0;
+                    this.currentPlayer = lastMove.player;
+                }
+
                 this.gameOver = false;
                 this.winner = null;
 
                 document.getElementById('winnerMessage').className = 'winner-message';
+                document.getElementById('aiThinking').style.display = 'none';
                 this.drawBoard();
                 this.updateCurrentPlayer();
 
@@ -487,6 +806,7 @@
                 this.moveHistory = [];
 
                 document.getElementById('winnerMessage').className = 'winner-message';
+                document.getElementById('aiThinking').style.display = 'none';
                 document.getElementById('undoBtn').disabled = true;
                 this.drawBoard();
                 this.updateCurrentPlayer();
@@ -494,7 +814,38 @@
         }
 
         // 全局游戏实例
-        let game = new GomokuGame(15);
+        let game = new GomokuGame(15, 'pvp', 'medium');
+
+        function setGameMode(mode) {
+            game.gameMode = mode;
+            game.reset();
+
+            // 更新按钮状态
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 显示/隐藏难度选择
+            if (mode === 'ai') {
+                document.getElementById('difficultySelector').style.display = 'flex';
+            } else {
+                document.getElementById('difficultySelector').style.display = 'none';
+            }
+
+            game.updateCurrentPlayer();
+        }
+
+        function setDifficulty(difficulty) {
+            game.difficulty = difficulty;
+            game.reset();
+
+            // 更新按钮状态
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
 
         function undoMove() {
             game.undo();
@@ -519,7 +870,7 @@
             const index = parseInt(choice) - 1;
 
             if (index >= 0 && index < sizes.length) {
-                game = new GomokuGame(sizes[index]);
+                game = new GomokuGame(sizes[index], game.gameMode, game.difficulty);
                 document.getElementById('undoBtn').disabled = true;
             }
         }
