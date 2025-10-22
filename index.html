@@ -870,19 +870,25 @@
                 this.gameOver = false;
                 this.winner = null;
 
-                // 如果悔棋后没有棋子了，重置计时器
-                if (this.moveHistory.length === 0) {
-                    this.stopTimer();
-                    this.elapsedTime = 0;
-                    this.updateTimerDisplay();
-                    document.getElementById('undoBtn').disabled = true;
-                }
-                // 如果还有棋子，计时器继续运行（不做任何操作）
-
                 document.getElementById('winnerMessage').className = 'winner-message';
                 document.getElementById('aiThinking').style.display = 'none';
                 this.drawBoard();
                 this.updateCurrentPlayer();
+
+                // 处理计时器
+                if (this.moveHistory.length === 0) {
+                    // 如果悔棋后没有棋子了，重置计时器
+                    this.stopTimer();
+                    this.elapsedTime = 0;
+                    this.updateTimerDisplay();
+                    document.getElementById('undoBtn').disabled = true;
+                } else {
+                    // 如果还有棋子，确保计时器在运行
+                    if (!this.timerInterval) {
+                        // 如果计时器被停止了（比如游戏结束后悔棋），重新启动
+                        this.startTimer();
+                    }
+                }
 
                 return true;
             }
