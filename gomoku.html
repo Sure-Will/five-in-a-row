@@ -302,15 +302,15 @@
         <p class="subtitle">Gomoku / Five in a Row</p>
 
         <div class="mode-selector">
-            <button class="mode-btn active" onclick="setGameMode('pvp')">👥 双人对战</button>
-            <button class="mode-btn" onclick="setGameMode('ai')">🤖 AI对战</button>
+            <button class="mode-btn" onclick="setGameMode('pvp')">👥 双人对战</button>
+            <button class="mode-btn active" onclick="setGameMode('ai')">🤖 AI对战</button>
         </div>
 
-        <div class="difficulty-selector" id="difficultySelector" style="display: none;">
+        <div class="difficulty-selector" id="difficultySelector" style="display: flex;">
             <span style="font-weight: bold; margin-right: 10px;">AI难度：</span>
-            <button class="diff-btn active" onclick="setDifficulty('easy')">简单</button>
+            <button class="diff-btn" onclick="setDifficulty('easy')">简单</button>
             <button class="diff-btn" onclick="setDifficulty('medium')">中等</button>
-            <button class="diff-btn" onclick="setDifficulty('hard')">困难</button>
+            <button class="diff-btn active" onclick="setDifficulty('hard')">困难</button>
         </div>
 
         <div class="game-info">
@@ -870,14 +870,19 @@
                 this.gameOver = false;
                 this.winner = null;
 
+                // 如果悔棋后没有棋子了，重置计时器
+                if (this.moveHistory.length === 0) {
+                    this.stopTimer();
+                    this.elapsedTime = 0;
+                    this.updateTimerDisplay();
+                    document.getElementById('undoBtn').disabled = true;
+                }
+                // 如果还有棋子，计时器继续运行（不做任何操作）
+
                 document.getElementById('winnerMessage').className = 'winner-message';
                 document.getElementById('aiThinking').style.display = 'none';
                 this.drawBoard();
                 this.updateCurrentPlayer();
-
-                if (this.moveHistory.length === 0) {
-                    document.getElementById('undoBtn').disabled = true;
-                }
 
                 return true;
             }
@@ -943,7 +948,7 @@
         }
 
         // 全局游戏实例
-        let game = new GomokuGame(15, 'pvp', 'medium');
+        let game = new GomokuGame(15, 'ai', 'hard');
 
         function setGameMode(mode) {
             game.gameMode = mode;
