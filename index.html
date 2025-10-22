@@ -428,7 +428,13 @@
             }
 
             setupEventListeners() {
-                this.canvas.addEventListener('click', (e) => {
+                // 先移除旧的监听器（如果存在）
+                if (this.clickHandler) {
+                    this.canvas.removeEventListener('click', this.clickHandler);
+                }
+
+                // 创建新的点击处理函数
+                this.clickHandler = (e) => {
                     if (this.gameOver) return;
                     if (this.gameMode === 'ai' && this.currentPlayer === 2) return; // AI回合不允许玩家下
 
@@ -442,7 +448,10 @@
                     if (this.isValidMove(row, col)) {
                         this.makeMove(row, col);
                     }
-                });
+                };
+
+                // 添加新的监听器
+                this.canvas.addEventListener('click', this.clickHandler);
             }
 
             isValidMove(row, col) {
