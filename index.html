@@ -238,6 +238,39 @@
             font-weight: bold;
         }
 
+        .timer-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+        }
+
+        .timer-item {
+            text-align: center;
+        }
+
+        .timer-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .timer-value {
+            font-size: 2em;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .best-time {
+            color: #ffd700;
+        }
+
         @media (max-width: 600px) {
             .container {
                 padding: 15px;
@@ -303,6 +336,17 @@
             </div>
         </div>
 
+        <div class="timer-container">
+            <div class="timer-item">
+                <div class="timer-label">⏱️ 用时</div>
+                <div class="timer-value" id="currentTime">00:00</div>
+            </div>
+            <div class="timer-item">
+                <div class="timer-label">🏆 最佳记录</div>
+                <div class="timer-value best-time" id="bestTime">--:--</div>
+            </div>
+        </div>
+
         <div class="winner-message" id="winnerMessage"></div>
 
         <div class="board-container">
@@ -333,12 +377,18 @@
                 this.gameMode = gameMode; // 'pvp' or 'ai'
                 this.difficulty = difficulty; // 'easy', 'medium', 'hard'
 
+                // 计时器相关
+                this.startTime = null;
+                this.timerInterval = null;
+                this.elapsedTime = 0;
+
                 this.canvas = document.getElementById('gameBoard');
                 this.ctx = this.canvas.getContext('2d');
 
                 this.initCanvas();
                 this.drawBoard();
                 this.setupEventListeners();
+                this.loadBestTime();
             }
 
             initCanvas() {
@@ -472,6 +522,11 @@
             }
 
             makeMove(row, col) {
+                // 第一步棋时启动计时器
+                if (this.moveHistory.length === 0) {
+                    this.startTimer();
+                }
+
                 this.board[row][col] = this.currentPlayer;
                 this.moveHistory.push({ row, col, player: this.currentPlayer });
                 this.drawBoard();
@@ -479,9 +534,11 @@
                 if (this.checkWin(row, col)) {
                     this.gameOver = true;
                     this.winner = this.currentPlayer;
+                    this.stopTimer();
                     this.showWinner();
                 } else if (this.isBoardFull()) {
                     this.gameOver = true;
+                    this.stopTimer();
                     this.showDraw();
                 } else {
                     this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
@@ -776,7 +833,25 @@
                 }
 
                 const message = document.getElementById('winnerMessage');
-                message.innerHTML = `🎉 恭喜！${playerName} 获胜！`;
+                const timeStr = this.formatTime(this.elapsedTime);
+                let messageText = `🎉 恭喜！${playerName} 获胜！`;
+
+                // 如果是AI模式且玩家获胜，显示用时并更新最佳记录
+                if (this.gameMode === 'ai' && this.winner === 1) {
+                    messageText += `<br>⏱️ 用时：${timeStr}`;
+
+                    // 更新最佳记录
+                    const bestTimeKey = `bestTime_${this.difficulty}_${this.boardSize}`;
+                    const currentBest = localStorage.getItem(bestTimeKey);
+
+                    if (!currentBest || this.elapsedTime < parseInt(currentBest)) {
+                        localStorage.setItem(bestTimeKey, this.elapsedTime);
+                        this.loadBestTime();
+                        messageText += `<br>🏆 新纪录！`;
+                    }
+                }
+
+                message.innerHTML = messageText;
                 message.className = 'winner-message show';
                 message.style.color = this.winner === 1 ? '#000' : '#666';
             }
@@ -824,11 +899,56 @@
                 this.winner = null;
                 this.moveHistory = [];
 
+                // 重置计时器
+                this.stopTimer();
+                this.elapsedTime = 0;
+                this.updateTimerDisplay();
+
                 document.getElementById('winnerMessage').className = 'winner-message';
                 document.getElementById('aiThinking').style.display = 'none';
                 document.getElementById('undoBtn').disabled = true;
                 this.drawBoard();
                 this.updateCurrentPlayer();
+            }
+
+            // 计时器相关方法
+            startTimer() {
+                this.startTime = Date.now() - this.elapsedTime;
+                this.timerInterval = setInterval(() => {
+                    this.elapsedTime = Date.now() - this.startTime;
+                    this.updateTimerDisplay();
+                }, 100); // 每100ms更新一次
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            }
+
+            updateTimerDisplay() {
+                const timeStr = this.formatTime(this.elapsedTime);
+                document.getElementById('currentTime').textContent = timeStr;
+            }
+
+            formatTime(ms) {
+                const totalSeconds = Math.floor(ms / 1000);
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            loadBestTime() {
+                const bestTimeKey = `bestTime_${this.difficulty}_${this.boardSize}`;
+                const bestTime = localStorage.getItem(bestTimeKey);
+
+                if (bestTime) {
+                    const timeStr = this.formatTime(parseInt(bestTime));
+                    document.getElementById('bestTime').textContent = timeStr;
+                } else {
+                    document.getElementById('bestTime').textContent = '--:--';
+                }
             }
         }
 
@@ -853,6 +973,7 @@
             }
 
             game.updateCurrentPlayer();
+            game.loadBestTime();
         }
 
         function setDifficulty(difficulty) {
@@ -864,6 +985,7 @@
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
+            game.loadBestTime();
         }
 
         function undoMove() {
