@@ -4,13 +4,27 @@
 
 ## 🌟 快速开始（推荐）
 
-### 网页版 - 无需安装任何软件！
+### 🌐 在线玩（最简单！）
 
-**最简单的方式：直接双击打开 `gomoku.html` 文件**
+**无需下载，直接在浏览器中玩：**
 
-1. 在文件管理器中找到 `gomoku.html` 文件
+👉 **[点击这里开始游戏](https://sure-will.github.io/five-in-a-row/)** 👈
+
+### 💻 本地玩
+
+如果你想在本地运行：
+
+**方式一：下载单个文件**
+1. 下载 `gomoku.html` 或 `index.html` 文件
 2. 双击打开（会在浏览器中打开）
 3. 开始游戏！
+
+**方式二：克隆仓库**
+```bash
+git clone https://github.com/Sure-Will/five-in-a-row.git
+cd five-in-a-row
+# 双击打开 index.html 或 gomoku.html
+```
 
 支持所有现代浏览器（Chrome、Firefox、Safari、Edge等）
 
