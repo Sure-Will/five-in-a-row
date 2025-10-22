@@ -512,6 +512,8 @@
             }
 
             makeMove(row, col) {
+                // [修改 C.4] (已删除) 此处不再修改 'aiThinking' 的显示状态
+                
                 // 第一步棋时启动计时器
                 if (this.moveHistory.length === 0) {
                     this.startTimer();
@@ -544,7 +546,10 @@
             }
 
             aiMove() {
-                document.getElementById('aiThinking').style.display = 'block';
+                // [修改 C.1] 更改 'aiThinking' 状态
+                const aiThinkingEl = document.getElementById('aiThinking');
+                aiThinkingEl.innerHTML = '🤖 AI思考中...';
+                aiThinkingEl.style.display = 'block';
 
                 // 延迟执行，让"AI思考中"提示显示出来
                 setTimeout(() => {
@@ -559,8 +564,13 @@
                     }
 
                     if (move) {
-                        document.getElementById('aiThinking').style.display = 'none';
+                        // [修改 C.2] 更改 'aiThinking' 状态，但不隐藏
+                        aiThinkingEl.innerHTML = '✅ 轮到你了！'; 
+                        // [修改 C.3] (删除了 aiThinkingEl.style.display = 'none';)
                         this.makeMove(move.row, move.col);
+                    } else {
+                        // 保底处理，防止AI卡住
+                        aiThinkingEl.innerHTML = '🤔 游戏结束?';
                     }
                 }, 500); // 0.5秒延迟，让AI看起来在思考
             }
@@ -582,15 +592,15 @@
                 return null;
             }
 
-            // 中等AI：基于简单评分
+            // 中等AI：使用更智能的评分 (evaluatePositionAdvanced)
             getMediumMove() {
-                let bestScore = -1;
+                let bestScore = -Infinity;
                 let bestMove = null;
 
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
                         if (this.board[i][j] === 0) {
-                            const score = this.evaluatePosition(i, j);
+                            const score = this.evaluatePositionAdvanced(i, j); 
                             if (score > bestScore) {
                                 bestScore = score;
                                 bestMove = { row: i, col: j };
@@ -599,7 +609,7 @@
                     }
                 }
 
-                return bestMove;
+                return bestMove || this.getRandomMove(); 
             }
 
             // 困难AI：更智能的评分系统
@@ -652,28 +662,8 @@
                 return bestMove || this.getRandomMove();
             }
 
-            // 简单评分函数
-            evaluatePosition(row, col) {
-                let score = 0;
 
-                // 检查周围是否有棋子
-                for (let i = -1; i <= 1; i++) {
-                    for (let j = -1; j <= 1; j++) {
-                        const newRow = row + i;
-                        const newCol = col + j;
-                        if (newRow >= 0 && newRow < this.boardSize &&
-                            newCol >= 0 && newCol < this.boardSize) {
-                            if (this.board[newRow][newCol] !== 0) {
-                                score += 1;
-                            }
-                        }
-                    }
-                }
-
-                return score;
-            }
-
-            // 高级评分函数
+            // [修改 B] 高级评分函数 (调整权重)
             evaluatePositionAdvanced(row, col) {
                 let score = 0;
                 const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
@@ -681,11 +671,12 @@
                 for (let [dr, dc] of directions) {
                     // 评估AI的进攻分数
                     const aiScore = this.evaluateLine(row, col, dr, dc, 2);
-                    score += aiScore;
-
+                    
                     // 评估玩家的威胁（防守分数）
                     const playerScore = this.evaluateLine(row, col, dr, dc, 1);
-                    score += playerScore * 0.9; // 稍微降低防守权重
+                    
+                    // [修改 B.1] 进攻和防守的分数相加，防守权重略高 (1.1)
+                    score += aiScore + (playerScore * 1.1); 
                 }
 
                 // 中心位置加分
@@ -696,67 +687,66 @@
                 return score;
             }
 
-            // 评估某个方向上的连珠情况
+            // [修改 A] 评估某个方向上的连珠情况 (重写此函数以提高AI)
             evaluateLine(row, col, dr, dc, player) {
-                let count = 0;
-                let empty = 0;
-                let blocked = 0;
-
-                // 正方向
+                let count = 0; // 连续的己方棋子
+                let blocks = 0; // 被封堵的端点 (边界或对方棋子)
+                
+                // 扫描正方向
                 for (let i = 1; i <= 4; i++) {
                     const r = row + dr * i;
                     const c = col + dc * i;
                     if (r < 0 || r >= this.boardSize || c < 0 || c >= this.boardSize) {
-                        blocked++;
+                        blocks++;
                         break;
                     }
                     if (this.board[r][c] === player) {
                         count++;
                     } else if (this.board[r][c] === 0) {
-                        empty++;
-                        break;
+                        break; // 遇到空位，停止扫描
                     } else {
-                        blocked++;
+                        blocks++; // 遇到对方棋子
                         break;
                     }
                 }
 
-                // 反方向
+                // 扫描反方向
                 for (let i = 1; i <= 4; i++) {
                     const r = row - dr * i;
                     const c = col - dc * i;
                     if (r < 0 || r >= this.boardSize || c < 0 || c >= this.boardSize) {
-                        blocked++;
+                        blocks++;
                         break;
                     }
                     if (this.board[r][c] === player) {
                         count++;
                     } else if (this.board[r][c] === 0) {
-                        empty++;
-                        break;
+                        break; // 遇到空位，停止扫描
                     } else {
-                        blocked++;
+                        blocks++; // 遇到对方棋子
                         break;
                     }
                 }
 
-                // 根据连珠数和开放程度评分
-                if (count >= 4) return 100000; // 成五
-                if (count === 3 && blocked === 0) return 10000; // 活四
-                if (count === 3 && blocked === 1) return 1000; // 冲四
-                if (count === 2 && blocked === 0) return 1000; // 活三
-                if (count === 2 && blocked === 1) return 100; // 眠三
-                if (count === 1 && blocked === 0) return 10; // 活二
+                // 评分逻辑 (count 是 *已有的* 棋子数, 我们落子是第 count + 1 个)
+                
+                if (count >= 4) return 500000; // (落子后) 成五
+                if (count === 3 && blocks === 0) return 50000; // (落子后) 活四
+                if (count === 3 && blocks === 1) return 5000;  // (落子后) 冲四
+                if (count === 2 && blocks === 0) return 5000;  // (落子后) 活三
+                if (count === 2 && blocks === 1) return 100;   // (落子后) 眠三
+                if (count === 1 && blocks === 0) return 10;    // (落子后) 活二
 
                 return count;
             }
 
+
             checkWin(row, col) {
                 const directions = [
-                    [0, 1],   // 横向
-                    [1, 0],   // 纵向
-                    [1, 1],   // 右下斜
-                    [1, -1]   // 左下斜
+                    [0, 1],  // 横向
+                    [1, 0],  // 纵向
+                    [1, 1],  // 右下斜
+                    [1, -1]  // 左下斜
                 ];
 
                 const player = this.board[row][col];
@@ -956,7 +946,8 @@
         // 全局游戏实例
         let game = new GomokuGame(15, 'ai', 'hard');
 
-        function setGameMode(mode) {
+        // [修改 4] JS: 接收 event 参数
+        function setGameMode(mode, event) { 
             game.gameMode = mode;
             game.reset();
 
@@ -964,7 +955,7 @@
             document.querySelectorAll('.mode-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            event.target.classList.add('active'); // 使用传入的 event
 
             // 显示/隐藏难度选择
             if (mode === 'ai') {
@@ -977,7 +968,8 @@
             game.loadBestTime();
         }
 
-        function setDifficulty(difficulty) {
+        // [修改 4] JS: 接收 event 参数
+        function setDifficulty(difficulty, event) { 
             game.difficulty = difficulty;
             game.reset();
 
@@ -985,7 +977,7 @@
             document.querySelectorAll('.diff-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            event.target.classList.add('active'); // 使用传入的 event
             game.loadBestTime();
         }
 
@@ -1003,12 +995,17 @@
             const sizes = [9, 13, 15, 19];
             const sizeNames = ['9路（快速）', '13路（中等）', '15路（标准）', '19路（围棋）'];
 
-            let message = '选择棋盘大小：\n';
+            // [修改 5] 优化 prompt 提示文案
+            let message = `当前棋盘大小: ${game.boardSize}x${game.boardSize}\n\n选择新的棋盘大小：\n`;
             sizes.forEach((size, index) => {
                 message += `${index + 1}. ${sizeNames[index]}\n`;
             });
-
-            const choice = prompt(message + '\n请输入序号（1-4）：');
+            
+            // [修改 5] 优化 prompt，添加默认值
+            const currentSizeIndex = sizes.indexOf(game.boardSize);
+            const defaultChoice = currentSizeIndex !== -1 ? currentSizeIndex + 1 : 3;
+            const choice = prompt(message + '\n请输入序号（1-4）：', defaultChoice);
+            
             const index = parseInt(choice) - 1;
 
             if (index >= 0 && index < sizes.length) {
