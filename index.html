@@ -130,8 +130,8 @@
         let board, boardSize, maxDepth; // 移除了 difficulty
         let zobristTable, currentHash, moveHistory;
         let transpositionTable = new Map();
-        
-        const TIMEOUT_MS = 10000; // 10 秒 AI 熔断
+
+        const TIMEOUT_MS = 5000; // 5 秒 AI 熔断
 
         // --- 核心入口：接收主线程消息 ---
         self.onmessage = function(e) {
@@ -889,9 +889,9 @@
                 this.startTime = null;
                 this.timerInterval = null;
                 this.elapsedTime = 0;
-                
+
                 this.playerTimerId = null;
-                this.playerTimeLeft = 10; // 秒
+                this.playerTimeLeft = 5; // 秒
 
                 this.canvas = document.getElementById('gameBoard');
                 this.ctx = this.canvas.getContext('2d');
@@ -1151,8 +1151,8 @@
 
                 const aiThinkingEl = document.getElementById('aiThinking');
                  // 固定为硕神模式的提示
-                let thinkingText = `🔥 硕神思考中... (迭代至D:${this.GOD_DEPTH}, 10s熔断)`;
-                
+                let thinkingText = `🔥 硕神思考中... (迭代至D:${this.GOD_DEPTH}, 5s熔断)`;
+
                 aiThinkingEl.innerHTML = thinkingText;
                 aiThinkingEl.style.display = 'block';
 
@@ -1192,7 +1192,7 @@
 
                 let durationText = `(用时 ${duration}s)`;
                 // TIMEOUT_MS 在 Worker 中定义，这里用字面量
-                if (parseFloat(duration) >= 10.0) {
+                if (parseFloat(duration) >= 5.0) {
                     durationText = `(超时 ${duration}s, 返回D:${depth}结果)`;
                 }
 
@@ -1217,7 +1217,7 @@
                 } else {
                     stepTaunts = [ // 硕神专属嘲讽
                         `神之一手。到你了, ${target}。`,
-                        `你还有 ${10 - Math.ceil(parseFloat(duration))} 秒来揣摩圣意, ${target}。`,
+                        `你还有 ${5 - Math.ceil(parseFloat(duration))} 秒来揣摩圣意, ${target}。`,
                         `${target}, 你已经输了, 只是还没意识到。`,
                         `完美的防守，无懈可击的进攻。颤抖吧, ${target}！`,
                         `我看到了 ${depth} 层之后的世界, ${target}, 你呢？`,
@@ -1366,11 +1366,11 @@
             // 启动玩家计时器
             startPlayerTimer() {
                 // [玩家计时.启动逻辑修正] 确保游戏未结束且确实轮到玩家
-                if (this.gameOver || this.currentPlayer !== 1) return; 
-                
+                if (this.gameOver || this.currentPlayer !== 1) return;
+
                 this.stopPlayerTimer(); // 先清除旧的
-                this.playerTimeLeft = 10;
-                this.updateCurrentPlayer(); // 更新显示 (10s)
+                this.playerTimeLeft = 5;
+                this.updateCurrentPlayer(); // 更新显示 (5s)
                 
                 this.playerTimerId = setInterval(() => {
                     // 再次检查，防止计时器在不该跑的时候跑
@@ -1531,8 +1531,8 @@
                  '🔥 **硕神模式**: AI执白棋 (2) **立即**在天元落子先行，你执黑棋 (1)',
                  '点击棋盘空白处落子',
                  '先将五个棋子连成一线者获胜（横、竖、斜均可）',
-                 '玩家**第一步后**每步思考时间不得超过10秒，超时将随机落子',
-                 'AI 每步思考时间上限10秒',
+                 '玩家**第一步后**每步思考时间不得超过5秒，超时将随机落子',
+                 'AI 每步思考时间上限5秒',
                  '**无悔棋**'
             ];
              rules.forEach(ruleText => {
