@@ -19,7 +19,6 @@
         }
         h1 { text-align: center; color: #333; margin-bottom: 10px; font-size: 2.5em; }
         .subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 1.1em; }
-        /* 模式和难度选择器已删除 */
         .difficulty-selector { display: flex; justify-content: center; margin-bottom: 20px; align-items: center; }
         .diff-label { font-weight: bold; margin-right: 10px; font-size: 1.1em;}
         .god-mode-active {
@@ -83,7 +82,7 @@
         <h1>🎮 五子棋</h1>
         <p class="subtitle">Gomoku / Five in a Row (15x15)</p>
 
-        <div class="difficulty-selector">
+         <div class="difficulty-selector">
             <span class="diff-label">当前模式：</span>
             <span class="god-mode-active">🔥 硕神模式</span>
         </div>
@@ -91,7 +90,7 @@
 
         <div class="game-info">
             <div class="current-player" id="currentPlayer">
-                当前玩家：<span class="player-white">○ AI（白棋）</span> <span id="playerTimeLeft"></span>
+                当前玩家：<span class="player-black">● 你（黑棋）</span> <span id="playerTimeLeft"></span>
             </div>
             <div class="controls">
                 <button class="btn-restart" id="restartBtn" onclick="restartGame()">🔄 重新开始</button>
@@ -120,10 +119,10 @@
         <div class="instructions">
             <h3>📖 游戏规则</h3>
             <ul>
-                <li>🔥 **硕神模式**: AI执白棋 (2) 先行，你执黑棋 (1)</li>
+                <li>🔥 **硕神模式**: AI执白棋 (2) **立即**在天元落子先行，你执黑棋 (1)</li>
                 <li>点击棋盘空白处落子</li>
                 <li>先将五个棋子连成一线者获胜（横、竖、斜均可）</li>
-                <li>玩家每步思考时间不得超过10秒，超时将随机落子</li>
+                <li>玩家**第一步后**每步思考时间不得超过10秒，超时将随机落子</li>
                 <li>AI 每步思考时间上限10秒</li>
                 <li>**无悔棋**</li>
             </ul>
@@ -173,7 +172,6 @@
         
         // --- AI 算法 ---
         
-        // [移除难度] 简单/中等/困难 AI 函数已删除 (getHardMove 保留作为超时备用)
         function getHardMove() { // 保留作为 IDDFS 超时的备用逻辑
             let bestScore = -Infinity;
             let bestMove = null;
@@ -206,7 +204,7 @@
                     }
                 }
             }
-             // [AI 优化] 困难模式增加随机性，避免完全一样
+             // 困难模式增加随机性，避免完全一样
             const emptyPositions = [];
             for (let i = 0; i < boardSize; i++) { for (let j = 0; j < boardSize; j++) { if (board[i][j] === 0) emptyPositions.push({ row: i, col: j }); } }
             return bestMove || (emptyPositions.length > 0 ? emptyPositions[Math.floor(Math.random() * emptyPositions.length)] : null);
@@ -367,26 +365,33 @@
         // 开局库 - 硕神模式专用 (AI 先手)
         function getOpeningMove() {
             const center = Math.floor(boardSize / 2);
-            // AI 第一步：走天元
-            if (moveHistory.length === 0) {
-                return { row: center, col: center }; 
-            }
+            // AI 第一步：走天元 (此逻辑在主线程处理了，Worker不需要)
+            // if (moveHistory.length === 0) { ... }
+            
             // AI 第二步 (应对玩家的第1步)
             if (boardSize === 15 && moveHistory.length === 2) {
                 const centerMove = moveHistory[0]; // AI (2)
                 const userMove = moveHistory[1];   // Player (1)
+                // 确保AI第一步是天元 (虽然主线程保证了, 但Worker侧也检查一下)
                 if (centerMove.row !== center || centerMove.col !== center) return null; 
 
                 const dr = userMove.row - centerMove.row; 
                 const dc = userMove.col - centerMove.col; 
 
                 let aiMove = null;
-                if (Math.abs(dr) === 1 && Math.abs(dc) === 1) { // 斜
-                    aiMove = { row: centerMove.row + dr, col: centerMove.col }; // 直
-                } else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) { // 直
-                    aiMove = { row: centerMove.row + dc, col: centerMove.col + dr }; // 斜
+                // 规则1: 玩家走斜角 -> AI走直线相邻
+                if (Math.abs(dr) === 1 && Math.abs(dc) === 1) { 
+                    aiMove = { row: centerMove.row + dr, col: centerMove.col }; 
+                } 
+                // 规则2: 玩家走直线相邻 -> AI走斜角相邻
+                else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) { 
+                    aiMove = { row: centerMove.row + dc, col: centerMove.col + dr }; 
                 }
-                if (aiMove && board[aiMove.row][aiMove.col] === 0) { // 检查有效性
+                // 检查计算出的位置是否在棋盘内且为空
+                if (aiMove && 
+                    aiMove.row >= 0 && aiMove.row < boardSize &&
+                    aiMove.col >= 0 && aiMove.col < boardSize &&
+                    board[aiMove.row][aiMove.col] === 0) { 
                     return aiMove;
                 }
             }
@@ -398,10 +403,28 @@
             const moveSet = new Set();
             const center = Math.floor(boardSize / 2);
 
+            // 初始状态（虽然AI已走天元，但以防万一）
             if (moveHistory.length === 0) {
-                return [{ row: center, col: center }];
+                 return [{ row: center, col: center }];
+            }
+            // 玩家第一步（AI已走天元）
+            if (moveHistory.length === 1) {
+                 // 玩家第一步可以在天元附近任意位置
+                 const moves = [];
+                 for(let dr = -1; dr <= 1; dr++) {
+                     for(let dc = -1; dc <=1; dc++) {
+                         if (dr === 0 && dc === 0) continue;
+                         const r = center + dr;
+                         const c = center + dc;
+                         if (r >= 0 && r < boardSize && c >= 0 && c < boardSize && board[r][c] === 0) {
+                             moves.push({row: r, col: c});
+                         }
+                     }
+                 }
+                 return moves; // 限制玩家第一步在天元旁
             }
             
+            // 正常搜索
             const radius = 2; // 只搜索棋子周围2格
             for (let r = 0; r < boardSize; r++) {
                 for (let c = 0; c < boardSize; c++) {
@@ -536,15 +559,14 @@
     
     <script>
         class GomokuGame {
-            constructor() { // [移除难度] 构造函数简化
+            constructor() { 
                 this.boardSize = 15; // 固定为 15
                 
                 const maxCanvasWidth = 500;
                 this.cellSize = Math.floor(Math.min(maxCanvasWidth / (this.boardSize + 1), 40));
 
                 this.board = Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
-                // [移除难度] 总是 AI 先手
-                this.currentPlayer = 2; // 1 = 黑棋/玩家, 2 = 白棋/AI
+                this.currentPlayer = 2; // AI 先手
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
@@ -574,7 +596,6 @@
                     const blob = new Blob([workerScript], { type: 'application/javascript' });
                     this.aiWorker = new Worker(URL.createObjectURL(blob));
                     
-                    // 接收来自 Worker 的消息 (AI计算结果)
                     this.aiWorker.onmessage = (e) => {
                         this.receiveAiMove(e.data);
                     };
@@ -583,16 +604,29 @@
                     alert("加载AI线程失败！请检查浏览器兼容性或刷新页面。");
                 }
 
-
                 this.initCanvas();
-                this.drawBoard();
+                this.drawBoard(); // 画空棋盘
                 this.setupEventListeners();
                 this.loadBestTime();
                 
-                // [移除难度] 游戏开始时 AI 先手
-                this.updateCurrentPlayer(); // 更新UI显示AI先手
-                this.aiMove(); // AI 下第一步
+                // [AI瞬时开局.1] 立即执行 AI 的第一步
+                this.performAiFirstMove(); 
             }
+            
+            // [AI瞬时开局.2] (新增) AI 第一步逻辑
+            performAiFirstMove() {
+                const center = Math.floor(this.boardSize / 2);
+                // 确保中心是空的 (只在游戏开始时调用)
+                if (this.board[center][center] === 0 && this.moveHistory.length === 0) {
+                    this.board[center][center] = 2; // AI (白棋) 落子
+                    this.moveHistory.push({ row: center, col: center, player: 2 });
+                    this.currentHash ^= this.zobristTable[center][center][1]; // 更新哈希 (player 2 -> index 1)
+                    this.currentPlayer = 1; // 轮到玩家
+                    this.drawBoard(); // 重绘棋盘，显示AI的第一颗子
+                    this.updateCurrentPlayer(); // 更新UI显示轮到玩家 (此时还不计时)
+                }
+            }
+
             
             // 初始化 Zobrist 哈希表 (主线程)
             initZobrist() {
@@ -666,7 +700,6 @@
                 // 绘制AI最后一步的标记
                 if (this.moveHistory.length > 0) {
                     const lastMove = this.moveHistory[this.moveHistory.length - 1];
-                    // AI 总是玩家 2
                     if (lastMove.player === 2) {
                         this.highlightLastMove(lastMove.row, lastMove.col);
                     }
@@ -718,8 +751,7 @@
                 }
                 this.clickHandler = (e) => {
                     if (this.gameOver) return;
-                    // 只有玩家 (1) 能点击
-                    if (this.currentPlayer === 2) return; 
+                    if (this.currentPlayer === 2) return; // AI 回合不能点
                     const rect = this.canvas.getBoundingClientRect();
                     const scaleX = this.canvas.width / rect.width;
                     const scaleY = this.canvas.height / rect.height;
@@ -748,8 +780,9 @@
                    this.stopPlayerTimer();
                 }
                 
-                if (this.moveHistory.length === 0) {
-                    this.startTimer(); // 游戏总计时
+                // [玩家计时.启动点修改] 游戏总计时在玩家下第一步后开始
+                if (this.moveHistory.length === 1) { // AI 已走一步，这是玩家第一步
+                    this.startTimer(); // 游戏总计时开始
                 }
 
                 this.board[row][col] = this.currentPlayer;
@@ -760,25 +793,28 @@
                 if (this.checkWin(row, col)) {
                     this.gameOver = true;
                     this.winner = this.currentPlayer;
-                    this.stopTimer(); // 游戏总计时
-                    this.stopPlayerTimer(); // 玩家计时
+                    this.stopTimer(); 
+                    this.stopPlayerTimer(); 
                     this.showWinner();
                 } else if (this.isBoardFull()) {
                     this.gameOver = true;
-                    this.stopTimer(); // 游戏总计时
-                    this.stopPlayerTimer(); // 玩家计时
+                    this.stopTimer(); 
+                    this.stopPlayerTimer(); 
                     this.showDraw();
                 } else {
                     this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
-                    this.updateCurrentPlayer();
-
+                    
                     // 轮到 AI
                     if (this.currentPlayer === 2) {
-                        this.aiMove();
+                         this.aiMove();
                     } 
                     // 轮到玩家
-                    else if (this.currentPlayer === 1) {
-                         this.startPlayerTimer();
+                    else {
+                        // [玩家计时.启动点修改] 只有在玩家下了第一步棋之后 (即 history >= 2) 才启动计时器
+                        if (this.moveHistory.length >= 2) {
+                            this.startPlayerTimer();
+                        }
+                         this.updateCurrentPlayer(); // 更新UI（可能带计时器，也可能不带）
                     }
                 }
             }
@@ -786,6 +822,7 @@
             // aiMove 交给 Web Worker
             aiMove() {
                 const aiThinkingEl = document.getElementById('aiThinking');
+                 // 固定为硕神模式的提示
                 let thinkingText = `🔥 硕神思考中... (迭代至D:${this.GOD_DEPTH}, 10s熔断)`;
                 
                 aiThinkingEl.innerHTML = thinkingText;
@@ -811,7 +848,8 @@
                 
                 let depthStr = (depth > 1) ? `(D:${depth})` : ''; 
                 let durationText = `(用时 ${duration}s)`;
-                if (parseFloat(duration) >= (TIMEOUT_MS / 1000)) { // TIMEOUT_MS 在 Worker 中定义
+                // TIMEOUT_MS 在 Worker 中定义，这里用字面量
+                if (parseFloat(duration) >= 10.0) { 
                     durationText = `(超时 ${duration}s, 返回D:${depth}结果)`;
                 }
                 
@@ -905,10 +943,11 @@
                 
                 // 更新 UI (附加计时器)
                 const playerTimerSpan = document.getElementById('playerTimeLeft');
-                if (this.currentPlayer === 1 && !this.gameOver) {
+                 // [玩家计时.显示逻辑] 只有当计时器ID存在时才显示时间
+                if (this.playerTimerId !== null && this.currentPlayer === 1 && !this.gameOver) {
                     playerTimerSpan.textContent = `(${this.playerTimeLeft}s)`;
                 } else {
-                    playerTimerSpan.textContent = ''; // AI回合或游戏结束时不显示
+                    playerTimerSpan.textContent = ''; 
                 }
                 document.getElementById('currentPlayer').innerHTML = '当前玩家：' + playerText + playerTimerSpan.outerHTML;
             }
@@ -983,9 +1022,11 @@
                     clearInterval(this.playerTimerId);
                     this.playerTimerId = null;
                 }
-                // 清除计时显示
+                 // 清除计时显示 (即使计时器不存在也尝试清除)
                  const playerTimerSpan = document.getElementById('playerTimeLeft');
                  if(playerTimerSpan) playerTimerSpan.textContent = '';
+                 // 确保UI立即更新为不带计时器状态
+                 this.updateCurrentPlayer();
             }
             
             // 强制随机落子
@@ -1004,7 +1045,10 @@
                  if (randomMove) {
                      // 延迟一点点执行，让提示能被看到
                      setTimeout(() => {
-                        this.makeMove(randomMove.row, randomMove.col);
+                         // 检查游戏是否在延迟期间结束了
+                         if (!this.gameOver) {
+                            this.makeMove(randomMove.row, randomMove.col);
+                         }
                      }, 500);
                  } else {
                      aiThinkingEl.innerHTML = `⏰ 时间到！但棋盘已满？`;
@@ -1014,8 +1058,7 @@
 
             _internalReset() {
                 this.board = Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
-                // 硕神模式总是 AI 先手
-                this.currentPlayer = 2; 
+                this.currentPlayer = 2; // AI 先手
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
@@ -1027,24 +1070,27 @@
                 this.updateTimerDisplay();
                 document.getElementById('winnerMessage').className = 'winner-message';
                 document.getElementById('aiThinking').style.display = 'none';
-                this.drawBoard();
-                this.updateCurrentPlayer();
+                this.drawBoard(); // 画空棋盘
+                // updateCurrentPlayer 会在 startNewGame 中调用
             }
             
-            startNewGame() { // [移除难度] 不再需要 aiGoesFirst 参数
+            startNewGame() { 
                 this._internalReset();
-                // 总是 AI 先手
-                this.currentPlayer = 2; 
-                this.updateCurrentPlayer(); 
-                this.aiMove(); 
+                // [AI瞬时开局.3] 重开游戏时，也立即执行 AI 第一步
+                this.performAiFirstMove(); 
             }
 
             startTimer() {
                 if (this.timerInterval) return; // 防止重复启动
                 this.startTime = Date.now() - this.elapsedTime;
                 this.timerInterval = setInterval(() => {
-                    this.elapsedTime = Date.now() - this.startTime;
-                    this.updateTimerDisplay();
+                    // 只有游戏进行中才计时
+                    if (!this.gameOver) {
+                        this.elapsedTime = Date.now() - this.startTime;
+                        this.updateTimerDisplay();
+                    } else {
+                        this.stopTimer(); // 游戏结束，停止计时
+                    }
                 }, 100); 
             }
 
@@ -1085,35 +1131,33 @@
         // ===============================================
         let game; 
 
-        // [移除难度] setGameMode 和 setDifficulty 函数已删除
+        // 模式和难度选择函数已删除
 
         function restartGame() {
             if (!game) return;
-            if (confirm('确定要重新开始游戏吗？（硕神模式 AI 将先行）')) {
-                // 总是以 AI 先手开始新游戏
+            // [AI瞬时开局.4] 确认提示修改
+            if (confirm('确定要重新开始游戏吗？（硕神AI将立即在天元落子）')) {
                 game.startNewGame(); 
             }
         }
         
-        // [移除棋盘] 全局 changeBoardSize() 函数已删除
+        // changeBoardSize 函数已删除
 
         // 等待HTML加载完毕后，才初始化游戏
         document.addEventListener('DOMContentLoaded', () => {
-            // [移除难度] 直接初始化硕神模式
+            // 直接初始化硕神模式
             game = new GomokuGame();
             
             // 更新规则文本
             const instructions = document.querySelector('.instructions ul');
-            // 清空旧规则 (除了标题)
             while (instructions.children.length > 0) {
                  instructions.removeChild(instructions.children[0]);
             }
-            // 添加新规则
             const rules = [
-                 '🔥 **硕神模式**: AI执白棋 (2) 先行，你执黑棋 (1)',
+                 '🔥 **硕神模式**: AI执白棋 (2) **立即**在天元落子先行，你执黑棋 (1)',
                  '点击棋盘空白处落子',
                  '先将五个棋子连成一线者获胜（横、竖、斜均可）',
-                 '玩家每步思考时间不得超过10秒，超时将随机落子',
+                 '玩家**第一步后**每步思考时间不得超过10秒，超时将随机落子',
                  'AI 每步思考时间上限10秒',
                  '**无悔棋**'
             ];
