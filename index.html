@@ -149,19 +149,20 @@
             transpositionTable.clear();
             
             const startTime = performance.now();
-            let moveResult = {}; 
-            
+            let moveResult = {};
+
             // 3. 始终调用硕神模式的迭代加深
-            moveResult = getBestMoveIDDFS(startTime, maxDepth); 
-            
+            moveResult = getBestMoveIDDFS(startTime, maxDepth);
+
             const endTime = performance.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
-            
+
             // 4. 将结果发回主线程
-            self.postMessage({ 
-                move: moveResult.move, 
-                duration: duration, 
-                depth: moveResult.depth 
+            self.postMessage({
+                move: moveResult.move,
+                duration: duration,
+                depth: moveResult.depth,
+                type: moveResult.type || 'Minimax' // 算法类型: VCF, VCT, Minimax
             });
         };
         
@@ -205,47 +206,60 @@
             return bestMove || (emptyPositions.length > 0 ? emptyPositions[Math.floor(Math.random() * emptyPositions.length)] : null);
         }
         
-        // 迭代加深 (IDDFS) 入口 - 硕神模式专用
+        // 迭代加深 (IDDFS) 入口 - 硕神模式专用 + VCF/VCT 威胁搜索
         function getBestMoveIDDFS(startTime, maxDepth) {
             const openingMove = getOpeningMove();
             if (openingMove) {
                 return { move: openingMove, depth: 1, timedOut: false };
             }
 
+            // ========== 优先级1：VCF 搜索（活四/冲四必杀）==========
+            const vcfResult = searchVCF(10, 2, startTime); // AI=2, 最大深度10
+            if (vcfResult && vcfResult.move) {
+                return { move: vcfResult.move, depth: vcfResult.depth, type: 'VCF', score: 10000000 };
+            }
+
+            // ========== 优先级2：VCT 搜索（活三威胁序列）==========
+            const vctResult = searchVCT(8, 2, startTime); // AI=2, 最大深度8
+            if (vctResult && vctResult.move) {
+                return { move: vctResult.move, depth: vctResult.depth, type: 'VCT', score: 5000000 };
+            }
+
+            // ========== 优先级3：传统 Minimax ==========
             let bestMove = null;
             let bestScore = -Infinity;
             let completedDepth = 0;
 
             // 迭代加深: 搜索深度 2, 4, 6, ... 直到 maxDepth
             for (let d = 2; d <= maxDepth; d += 2) {
-                
+
                 const currentTime = performance.now();
                 if ((currentTime - startTime) > TIMEOUT_MS) {
-                    break; 
+                    break;
                 }
 
                 const result = minimax_alphabeta(d, -Infinity, +Infinity, true, startTime);
 
                 if (result.timedOut) {
-                    break; 
+                    break;
                 }
 
                 bestMove = result.move;
                 bestScore = result.score;
-                completedDepth = d; 
-                
-                if (bestScore > 9000000) { 
-                    break; 
+                completedDepth = d;
+
+                if (bestScore > 9000000) {
+                    break;
                 }
             }
-            
+
             // 如果超时或搜索未完成
             if (bestMove === null) {
                 bestMove = getHardMove(); // 使用困难模式找一步棋
                 completedDepth = completedDepth || 1; // 至少算1层（困难模式）
             }
 
-            return { move: bestMove, score: bestScore, depth: completedDepth };
+            return { move: bestMove, score: bestScore, depth: completedDepth, type: 'Minimax' };
         }
 
         // 核心：带 Alpha-Beta 剪枝的 Minimax
@@ -562,6 +576,296 @@
             return false;
         }
 
+        // ============================================================
+        // VCF/VCT 威胁搜索算法
+        // ============================================================
+
+        // 获取某个位置在某个方向的模式类型
+        function getPatternType(row, col, dr, dc, player) {
+            if (board[row][col] !== 0) return 'NONE';
+
+            let count = 0;
+            let blocks = 0;
+            let spaces = 0; // 空位数（用于检测跳棋）
+
+            // 扫描正方向
+            for (let i = 1; i <= 4; i++) {
+                const r = row + dr * i;
+                const c = col + dc * i;
+                if (r < 0 || r >= boardSize || c < 0 || c >= boardSize) {
+                    blocks++; break;
+                }
+                if (board[r][c] === player) {
+                    count++;
+                } else if (board[r][c] === 0) {
+                    spaces++;
+                    if (spaces > 1) break; // 跳一格后继续，跳两格停止
+                } else {
+                    blocks++; break;
+                }
+            }
+
+            // 扫描反方向
+            for (let i = 1; i <= 4; i++) {
+                const r = row - dr * i;
+                const c = col - dc * i;
+                if (r < 0 || r >= boardSize || c < 0 || c >= boardSize) {
+                    blocks++; break;
+                }
+                if (board[r][c] === player) {
+                    count++;
+                } else if (board[r][c] === 0) {
+                    spaces++;
+                    if (spaces > 1) break;
+                } else {
+                    blocks++; break;
+                }
+            }
+
+            // 判断模式
+            if (count >= 4) return 'WIN';
+            if (count === 3 && blocks === 0) return 'LIVE_FOUR';
+            if (count === 3 && blocks === 1) return 'RUSH_FOUR';
+            if (count === 2 && blocks === 0) return 'LIVE_THREE';
+            if (count === 2 && blocks === 1) return 'SLEEP_THREE';
+            if (count === 1 && blocks === 0) return 'LIVE_TWO';
+
+            return 'NONE';
+        }
+
+        // 检查某个位置是否能形成指定级别的威胁
+        function hasPattern(row, col, player, threatLevel) {
+            if (board[row][col] !== 0) return false;
+
+            const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+            for (let [dr, dc] of directions) {
+                const pattern = getPatternType(row, col, dr, dc, player);
+
+                if (threatLevel === 'VCF') {
+                    // VCF: 只检测活四和冲四
+                    if (pattern === 'LIVE_FOUR' || pattern === 'RUSH_FOUR' || pattern === 'WIN') {
+                        return true;
+                    }
+                } else if (threatLevel === 'VCT') {
+                    // VCT: 检测活三及以上
+                    if (pattern === 'LIVE_FOUR' || pattern === 'RUSH_FOUR' ||
+                        pattern === 'LIVE_THREE' || pattern === 'WIN') {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 生成威胁走法
+        function generateThreatMoves(player, threatLevel) {
+            const threats = [];
+            const moveSet = new Set();
+
+            // 只搜索已有棋子周围2格
+            const radius = 2;
+            for (let r = 0; r < boardSize; r++) {
+                for (let c = 0; c < boardSize; c++) {
+                    if (board[r][c] === 0) continue;
+
+                    for (let dr = -radius; dr <= radius; dr++) {
+                        for (let dc = -radius; dc <= radius; dc++) {
+                            const nr = r + dr;
+                            const nc = c + dc;
+
+                            if (nr >= 0 && nr < boardSize && nc >= 0 && nc < boardSize &&
+                                board[nr][nc] === 0) {
+                                const key = `${nr},${nc}`;
+                                if (!moveSet.has(key) && hasPattern(nr, nc, player, threatLevel)) {
+                                    threats.push({ row: nr, col: nc });
+                                    moveSet.add(key);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return threats;
+        }
+
+        // 生成防守走法（防守某个威胁点）
+        function generateDefenseMoves(threatMove, opponent) {
+            const defMoves = [];
+            const player = (opponent === 1) ? 2 : 1; // 威胁方
+
+            // 简化策略：在威胁点周围1-2格内找防守点
+            const radius = 2;
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const r = threatMove.row + dr;
+                    const c = threatMove.col + dc;
+
+                    if (r >= 0 && r < boardSize && c >= 0 && c < boardSize &&
+                        board[r][c] === 0) {
+
+                        // 检查这个点是否能阻止威胁方形成五连
+                        board[r][c] = opponent;
+                        board[threatMove.row][threatMove.col] = player;
+                        const stillThreat = checkWin(threatMove.row, threatMove.col);
+                        board[r][c] = 0;
+                        board[threatMove.row][threatMove.col] = 0;
+
+                        if (!stillThreat) {
+                            defMoves.push({ row: r, col: c });
+                        }
+                    }
+                }
+            }
+
+            // 如果没有找到防守点，返回威胁点本身
+            if (defMoves.length === 0 && board[threatMove.row][threatMove.col] === 0) {
+                defMoves.push(threatMove);
+            }
+
+            return defMoves;
+        }
+
+        // VCF 求解器：搜索活四/冲四的必杀序列
+        function searchVCF(depth, player, startTime) {
+            if (depth <= 0) return null;
+
+            // 超时检查
+            const currentTime = performance.now();
+            if ((currentTime - startTime) > TIMEOUT_MS) {
+                return null;
+            }
+
+            const opponent = (player === 1) ? 2 : 1;
+
+            // 1. 生成所有"四"的威胁
+            const fourMoves = generateThreatMoves(player, 'VCF');
+
+            if (fourMoves.length === 0) return null;
+
+            for (const move of fourMoves) {
+                _simulateMove(move.row, move.col, player);
+
+                // 2. 如果直接成五，找到VCF
+                if (checkWin(move.row, move.col)) {
+                    _simulateUndo(move.row, move.col, player);
+                    return { move: move, depth: depth };
+                }
+
+                // 3. 对手必须防守
+                const defMoves = generateDefenseMoves(move, opponent);
+
+                // 4. 检查对手的每个防守，AI是否都能继续VCF
+                let allDefLeadToVCF = true;
+
+                if (defMoves.length === 0) {
+                    // 无法防守，说明已经必胜
+                    _simulateUndo(move.row, move.col, player);
+                    return { move: move, depth: depth };
+                }
+
+                for (const def of defMoves) {
+                    _simulateMove(def.row, def.col, opponent);
+
+                    const nextVCF = searchVCF(depth - 1, player, startTime);
+
+                    _simulateUndo(def.row, def.col, opponent);
+
+                    if (!nextVCF) {
+                        allDefLeadToVCF = false;
+                        break;
+                    }
+                }
+
+                _simulateUndo(move.row, move.col, player);
+
+                if (allDefLeadToVCF && defMoves.length > 0) {
+                    return { move: move, depth: depth };
+                }
+            }
+
+            return null;
+        }
+
+        // VCT 求解器：搜索活三+活四的威胁序列（简化版）
+        function searchVCT(depth, player, startTime) {
+            if (depth <= 0) return null;
+
+            // 超时检查
+            const currentTime = performance.now();
+            if ((currentTime - startTime) > TIMEOUT_MS) {
+                return null;
+            }
+
+            const opponent = (player === 1) ? 2 : 1;
+
+            // 1. 生成威胁走法（活三及以上）
+            const threatMoves = generateThreatMoves(player, 'VCT');
+
+            if (threatMoves.length === 0) return null;
+
+            // 优先选择更强的威胁（活四 > 冲四 > 活三）
+            threatMoves.sort((a, b) => {
+                const scoreA = evaluatePositionAdvanced(a.row, a.col);
+                const scoreB = evaluatePositionAdvanced(b.row, b.col);
+                return scoreB - scoreA;
+            });
+
+            // 只尝试前3个最强威胁（避免分支爆炸）
+            const topMoves = threatMoves.slice(0, 3);
+
+            for (const move of topMoves) {
+                _simulateMove(move.row, move.col, player);
+
+                // 如果直接成五
+                if (checkWin(move.row, move.col)) {
+                    _simulateUndo(move.row, move.col, player);
+                    return { move: move, depth: depth };
+                }
+
+                // 检查是否形成VCF（活四/冲四）
+                const vcfAfterThis = searchVCF(depth - 1, player, startTime);
+                if (vcfAfterThis) {
+                    _simulateUndo(move.row, move.col, player);
+                    return { move: move, depth: depth };
+                }
+
+                // 对手防守
+                const defMoves = generateDefenseMoves(move, opponent);
+
+                if (defMoves.length === 0) {
+                    _simulateUndo(move.row, move.col, player);
+                    return { move: move, depth: depth };
+                }
+
+                let allDefLeadToVCT = true;
+
+                for (const def of defMoves) {
+                    _simulateMove(def.row, def.col, opponent);
+
+                    // 递归检查VCT或VCF
+                    const nextThreat = searchVCF(depth - 1, player, startTime) ||
+                                      searchVCT(depth - 1, player, startTime);
+
+                    _simulateUndo(def.row, def.col, opponent);
+
+                    if (!nextThreat) {
+                        allDefLeadToVCT = false;
+                        break;
+                    }
+                }
+
+                _simulateUndo(move.row, move.col, player);
+
+                if (allDefLeadToVCT && defMoves.length > 0) {
+                    return { move: move, depth: depth };
+                }
+            }
+
+            return null;
+        }
+
     </script>
     
     <script>
@@ -866,40 +1170,66 @@
             
             // 接收 Worker 的计算结果
             receiveAiMove(moveData) {
-                const { move, duration, depth } = moveData; 
-                
+                const { move, duration, depth, type } = moveData;
+
                 // 如果游戏已经结束了（比如玩家在AI思考时刷新或重开），则不处理AI结果
                 if (this.gameOver) {
                     console.log("Game over, ignoring AI move.");
                     return;
                 }
-                
+
                 const aiThinkingEl = document.getElementById('aiThinking');
-                
-                let depthStr = (depth > 1) ? `(D:${depth})` : ''; 
+
+                // 显示算法类型
+                let typeStr = '';
+                if (type === 'VCF') {
+                    typeStr = '🔥 [VCF必杀]';
+                } else if (type === 'VCT') {
+                    typeStr = '⚡ [VCT威胁]';
+                } else {
+                    typeStr = `(D:${depth})`;
+                }
+
                 let durationText = `(用时 ${duration}s)`;
                 // TIMEOUT_MS 在 Worker 中定义，这里用字面量
-                if (parseFloat(duration) >= 10.0) { 
+                if (parseFloat(duration) >= 10.0) {
                     durationText = `(超时 ${duration}s, 返回D:${depth}结果)`;
                 }
-                
+
                 // [嘲讽] 准备嘲讽语录
                 const targets = ["小强强", "小辉辉"];
                 const target = targets[Math.floor(Math.random() * targets.length)];
-                let stepTaunts = [ // 硕神专属嘲讽
-                    `神之一手。到你了, ${target}。`,
-                    `你还有 ${10 - Math.ceil(parseFloat(duration))} 秒来揣摩圣意, ${target}。`,
-                    `${target}, 你已经输了, 只是还没意识到。`,
-                    `完美的防守，无懈可击的进攻。颤抖吧, ${target}！`,
-                    `我看到了 ${depth} 层之后的世界, ${target}, 你呢？`,
-                    `放弃吧, ${target}, 胜负已定。`,
-                    `弱小的人类${target}, 你的策略漏洞百出。`,
-                    `是不是很绝望啊, ${target}？`
-                ];
+                let stepTaunts = [];
+
+                if (type === 'VCF') {
+                    stepTaunts = [
+                        `${target}, 这是必杀序列！你已经输了！`,
+                        `VCF找到了，${target}，你无路可逃。`,
+                        `完美的四连威胁，${target}，认输吧！`,
+                        `${target}, 我已经算到了你的死期。`
+                    ];
+                } else if (type === 'VCT') {
+                    stepTaunts = [
+                        `${target}, 威胁序列已启动，你能撑几步？`,
+                        `VCT锁定，${target}，感受绝望吧！`,
+                        `${target}, 这是连续威胁，你防不住的。`
+                    ];
+                } else {
+                    stepTaunts = [ // 硕神专属嘲讽
+                        `神之一手。到你了, ${target}。`,
+                        `你还有 ${10 - Math.ceil(parseFloat(duration))} 秒来揣摩圣意, ${target}。`,
+                        `${target}, 你已经输了, 只是还没意识到。`,
+                        `完美的防守，无懈可击的进攻。颤抖吧, ${target}！`,
+                        `我看到了 ${depth} 层之后的世界, ${target}, 你呢？`,
+                        `放弃吧, ${target}, 胜负已定。`,
+                        `弱小的人类${target}, 你的策略漏洞百出。`,
+                        `是不是很绝望啊, ${target}？`
+                    ];
+                }
                 const stepTaunt = stepTaunts[Math.floor(Math.random() * stepTaunts.length)];
-                
+
                 // 显示信息 + 嘲讽
-                aiThinkingEl.innerHTML = `✅ AI落子 ${depthStr} ${durationText} <span class="step-taunt">${stepTaunt}</span>`; 
+                aiThinkingEl.innerHTML = `✅ AI落子 ${typeStr} ${durationText} <span class="step-taunt">${stepTaunt}</span>`; 
                 
                 if (move) {
                     // 再次检查游戏状态，并且当前必须轮到 AI (player 2)
