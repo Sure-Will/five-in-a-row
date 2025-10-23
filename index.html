@@ -440,6 +440,15 @@
                         }
                     }
                 }
+                
+                // [修改 AI标注.1] 绘制AI最后一步的标记
+                if (this.moveHistory.length > 0) {
+                    const lastMove = this.moveHistory[this.moveHistory.length - 1];
+                    // 只标记AI(玩家2)的棋
+                    if (this.gameMode === 'ai' && lastMove.player === 2) {
+                        this.highlightLastMove(lastMove.row, lastMove.col);
+                    }
+                }
             }
 
             drawPiece(row, col, player) {
@@ -476,6 +485,19 @@
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 1;
                 ctx.stroke();
+            }
+
+            // [修改 AI标注.2] 新增：高亮AI最后一步的函数
+            highlightLastMove(row, col) {
+                const ctx = this.ctx;
+                const x = this.cellSize * (col + 1);
+                const y = this.cellSize * (row + 1);
+                const radius = this.cellSize * 0.15; // 红色圆点的大小
+
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#FF0000'; // 鲜红色
+                ctx.fill();
             }
 
             setupEventListeners() {
@@ -561,7 +583,6 @@
                     } else if (this.difficulty === 'hard') {
                         move = this.getHardMove();
                     } else if (this.difficulty === 'nightmare') {
-                        // [修改 B] 调用噩梦难度 AI
                         move = this.getNightmareMove(); 
                     }
 
@@ -662,13 +683,69 @@
                 return bestMove || this.getRandomMove();
             }
 
-            // [修改 B] 新增：获取噩梦AI走法 (Minimax 2-ply)
+            // [修改 噩梦AI.1] 噩梦AI总入口
             getNightmareMove() {
+                // 1. 检查是否有开局定式
+                const openingMove = this.getOpeningMove();
+                if (openingMove) {
+                    return openingMove;
+                }
+                
+                // 2. 如果没有定式，则运行 Minimax 算法
+                return this.runMinimax();
+            }
+
+            // [修改 噩梦AI.2] 新增：开局库 (定式)
+            getOpeningMove() {
+                // 开局定式仅在 15x15 棋盘，且是 AI 的第二步时触发 (总步数 = 2)
+                if (this.boardSize !== 15 || this.moveHistory.length !== 2) {
+                    return null;
+                }
+
+                const centerMove = this.moveHistory[0]; // AI的第一步 (天元)
+                const userMove = this.moveHistory[1];   // 你的第一步
+
+                const center = Math.floor(this.boardSize / 2);
+                if (centerMove.row !== center || centerMove.col !== center) {
+                    return null; // AI第一步没走天元，定式失效
+                }
+
+                const dr = userMove.row - centerMove.row; // 相对行
+                const dc = userMove.col - centerMove.col; // 相对列
+
+                let aiMove = null;
+
+                // 规则1: 你走在了 "斜" 侧 (如 (6,6), (6,8), (8,6), (8,8))
+                // AI 执行 "水月 (Suigetsu)" 定式，走 "直" 侧
+                if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
+                    // 例如: 你走 (6,6) [dr=-1, dc=-1], AI 走 (6,7) [dr=-1, dc=0]
+                    aiMove = { row: centerMove.row + dr, col: centerMove.col };
+                }
+                // 规则2: 你走在了 "直" 侧 (如 (6,7), (7,6), (7,8), (8,7))
+                // AI 执行 "花月 (Kagetsu)" 定式，走 "斜" 侧
+                else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) {
+                    // 例如: 你走 (7,8) [dr=0, dc=1], AI 走 (8,7) [dr=1, dc=0]
+                    // (row + dc, col + dr) 是一个巧妙的计算方法
+                    aiMove = { row: centerMove.row + dc, col: centerMove.col + dr };
+                }
+
+                // 检查定式走法是否有效 (防止意外)
+                if (aiMove && this.isValidMove(aiMove.row, aiMove.col)) {
+                    return aiMove;
+                }
+
+                // 如果你走得太远 (dr/dc > 1)，则定式失效，返回null
+                return null;
+            }
+
+
+            // [修改 噩梦AI.3] 原来的 getNightmareMove() 重命名为 runMinimax()
+            runMinimax() {
                 let bestScore = -Infinity;
                 let bestMove = null;
                 const validMoves = this.getValidMoves();
                 
-                if (validMoves.length === 1) return validMoves[0]; // 处理AI第一步
+                if (validMoves.length === 1) return validMoves[0]; // 处理AI第一步 (走天元)
 
                 for (let move1 of validMoves) {
                     // 1. AI 尝试走一步
@@ -713,7 +790,7 @@
                 return bestMove || this.getRandomMove(); // 保底
             }
 
-            // [修改 B] 新增：获取AI的有效搜索范围
+            // 获取AI的有效搜索范围
             getValidMoves() {
                 const moveSet = new Set();
                 const center = Math.floor(this.boardSize / 2);
@@ -949,7 +1026,7 @@
                 return true;
             }
 
-            // [修改 C] 内部重置方法
+            // 内部重置方法
             _internalReset() {
                 this.board = Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
                 this.currentPlayer = 1; // 默认总是玩家1先手
@@ -966,16 +1043,47 @@
                 this.updateCurrentPlayer();
             }
             
-            // [修改 C] 新增：开始新游戏（处理AI先手）
+            // 开始新游戏（处理AI先手）
             startNewGame(aiGoesFirst = false) {
                 this._internalReset();
                 
                 if (aiGoesFirst && this.gameMode === 'ai') {
                     // 设置为AI（玩家2）回合
-                    this.currentPlayer = 2;
-                    this.updateCurrentPlayer();
-                    // AI执行第一步
-                    this.aiMove();
+                    // [修改 噩梦AI.4] AI先手时，currentPlayer 应该是 1 (黑棋)
+                    // 但是AI逻辑是 player 2。这里需要调整。
+                    // 噩梦AI是黑棋(1)，玩家是白棋(2)。
+                    // 让我们调整一下游戏规则：AI对战时，玩家恒为1(黑)，AI恒为2(白)。
+                    // "噩梦" 难度下，AI(2) 先手。
+                    
+                    // 检查原始代码：
+                    // restartGame() -> startNewGame(game.difficulty === 'nightmare')
+                    // 规则说："AI对战模式下，你执黑棋先行"
+                    // "噩梦" 按钮的 emoji 😱
+                    // 你的要求是 "噩梦难度的AI是先手的"
+                    
+                    // 好的，我们来修改规则：
+                    // 默认：玩家(1)黑棋 vs AI(2)白棋
+                    // 噩梦难度：AI(1)黑棋 vs 玩家(2)白棋
+                    
+                    // 让我们回到 "startNewGame"
+                    // this._internalReset() 会把 currentPlayer 设为 1
+                    
+                    if (aiGoesFirst && this.gameMode === 'ai') {
+                        // AI 先手 (AI 执黑棋)
+                        this.currentPlayer = 1; // AI(1) 是当前玩家
+                        // AI(1) vs Player(2)
+                        // 我们需要让 AI(1) 下棋
+                        
+                        // 这会搞乱所有 AI 逻辑，因为 AI 逻辑(2) 和 Player 逻辑(1) 是写死的。
+                        // 让我们坚持：Player=1, AI=2。
+                        
+                        // 新逻辑：
+                        // "噩梦" 难度下，AI(2) 先手。
+                        this.currentPlayer = 2; // AI 先手
+                        this.updateCurrentPlayer(); // 更新UI
+                        this.aiMove(); // AI 下第一步
+                    }
+                    
                 }
             }
 
@@ -1022,15 +1130,16 @@
         }
 
         // 全局游戏实例 (默认还是 'hard')
+        // [修改 噩梦AI.5] 修正了 setGameMode 和 setDifficulty 的事件处理
         let game = new GomokuGame(15, 'ai', 'hard');
 
-        // [修改 C] 修改全局函数，调用 startNewGame
-        function setGameMode(mode, event) { 
+        function setGameMode(mode) { 
             game.gameMode = mode;
             // 更新按钮状态
             document.querySelectorAll('.mode-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
+            // 找到点击的按钮并激活
             event.target.classList.add('active'); 
 
             if (mode === 'ai') {
@@ -1044,7 +1153,6 @@
             game.loadBestTime();
         }
 
-        // [修改 C] 修改全局函数，调用 startNewGame
         function setDifficulty(difficulty, event) { 
             game.difficulty = difficulty;
             // 更新按钮状态
@@ -1053,6 +1161,15 @@
             });
             event.target.classList.add('active'); 
             
+            // [修改 噩梦AI.6] 调整规则文本
+            const instructions = document.querySelector('.instructions ul');
+            const aiRule = instructions.children[3]; // 'AI对战模式下，你执黑棋先行'
+            if (difficulty === 'nightmare') {
+                aiRule.innerHTML = '😱 <b>噩梦模式</b>: AI执黑棋 (1) 先行，你执白棋 (2)';
+            } else {
+                aiRule.innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
+            }
+
             // 检查是否切换到噩梦难度
             game.startNewGame(difficulty === 'nightmare');
             game.loadBestTime();
@@ -1062,7 +1179,6 @@
             game.undo();
         }
 
-        // [修改 C] 修改全局函数，调用 startNewGame
         function restartGame() {
             if (confirm('确定要重新开始游戏吗？')) {
                 // 重新开始时，保持当前难度（包括噩梦AI先手）
@@ -1089,25 +1205,40 @@
                 // 重新创建游戏实例
                 const oldDifficulty = game.difficulty;
                 const oldMode = game.gameMode;
+                
+                // 销毁旧实例的计时器
+                game.stopTimer(); 
+                
                 game = new GomokuGame(sizes[index], oldMode, oldDifficulty);
                 
-                // 重新应用按钮激活状态
+                // 重新应用按钮激活状态 (简单匹配)
                 document.querySelectorAll('.diff-btn').forEach(btn => {
-                   if (btn.textContent.includes(oldDifficulty)) { // 简陋的匹配
+                   if (btn.onclick.toString().includes(`'${oldDifficulty}'`)) {
                        btn.classList.add('active');
                    } else {
                        btn.classList.remove('active');
                    }
                 });
                 
-                // [修改 C] 改变棋盘大小后也要检查AI先手
+                // 改变棋盘大小后也要检查AI先手
                 game.startNewGame(oldDifficulty === 'nightmare');
-                
             }
         }
 
         // 初始化
         document.getElementById('undoBtn').disabled = true;
+        
+        // [修改 噩梦AI.7] 页面加载时，手动设置一次 "困难" 按钮的 active 状态和规则文本
+        document.querySelector('.diff-btn[onclick*="\'hard\'"]').classList.add('active');
+        const instructions = document.querySelector('.instructions ul');
+        instructions.children[3].innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
+        
+        // [修改 噩梦AI.8] 修正 setGameMode 的调用方式
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            const mode = btn.onclick.toString().match(/'(.*?)'/)[1];
+            btn.onclick = () => setGameMode(mode);
+        });
+
     </script>
 </body>
 </html>
