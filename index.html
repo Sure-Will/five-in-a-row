@@ -135,31 +135,6 @@
         
         const TIMEOUT_MS = 10000; // 10 秒 AI 熔断
 
-        // [开局库.1] 定义开局库 (Map: hash -> move)
-        const openingBook = new Map();
-        // !!! 警告：下面的 hash 值是占位符，必须替换为真实计算值 !!!
-        // 格式: openingBook.set(局面哈希值, { row: AI应走行, col: AI应走列 });
-        // --- AI 白棋 (2) 先手 ---
-        // 局面 1: AI (7,7) -> 玩家 (6,6) [玩家斜]
-        const hash_p1_6_6 = 123456789012345; // <-- 替换!
-        openingBook.set(hash_p1_6_6, { row: 6, col: 7 }); // AI 回应 (6,7) [AI直] (水月)
-        // 局面 2: AI (7,7) -> 玩家 (7,6) [玩家直]
-        const hash_p1_7_6 = 234567890123456; // <-- 替换!
-        openingBook.set(hash_p1_7_6, { row: 6, col: 6 }); // AI 回应 (6,6) [AI斜] (花月)
-         // 局面 3: AI (7,7) -> 玩家 (8,8) [玩家斜]
-        const hash_p1_8_8 = 345678901234567; // <-- 替换!
-        openingBook.set(hash_p1_8_8, { row: 8, col: 7 }); // AI 回应 (8,7) [AI直] (水月)
-         // 局面 4: AI (7,7) -> 玩家 (6,7) [玩家直]
-        const hash_p1_6_7 = 456789012345678; // <-- 替换!
-        openingBook.set(hash_p1_6_7, { row: 6, col: 6 }); // AI 回应 (6,6) [AI斜] (花月)
-        // --- 更多定式可以继续添加 ---
-        // 局面 5: AI(7,7)->P(6,6)->AI(6,7)->P(7,6)
-        const hash_p1_66_ai_67_p1_76 = 567890123456789; // <-- 替换!
-        openingBook.set(hash_p1_66_ai_67_p1_76, { row: 5, col: 7 }); // AI 第 3 步示例
-        // 局面 6: AI(7,7)->P(7,6)->AI(6,6)->P(6,7)
-        const hash_p1_76_ai_66_p1_67 = 678901234567890; // <-- 替换!
-        openingBook.set(hash_p1_76_ai_66_p1_67, { row: 5, col: 5 }); // AI 第 3 步示例
-
         // --- 核心入口：接收主线程消息 ---
         self.onmessage = function(e) {
             const data = e.data;
@@ -178,53 +153,86 @@
             const startTime = performance.now();
             let moveResult = {}; 
             
-            // 3. 调用 AI 核心逻辑 (包含开局库和强制终结检查)
+            // 3. 始终调用硕神模式的迭代加深
+            console.log(`[Worker] Starting IDDFS search up to depth ${maxDepth}`);
             moveResult = getBestMoveIDDFS(startTime, maxDepth); 
+             console.log(`[Worker] IDDFS finished. Result depth: ${moveResult.depth}, Move:`, moveResult.move);
             
             const endTime = performance.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             
             // 4. 将结果发回主线程
+             console.log(`[Worker] Posting result back to main thread.`);
             self.postMessage({ 
                 move: moveResult.move, 
                 duration: duration, 
-                depth: moveResult.depth // 包含实际完成的深度
+                depth: moveResult.depth 
             });
         };
         
         // --- AI 算法 ---
         
         function getHardMove() { // 作为 IDDFS 超时或开局库/强制检查未命中时的备用
+            console.log("[Worker] Calculating fallback 'Hard' move.");
             let bestScore = -Infinity;
             let bestMove = null;
-            // (代码与上一版 getHardMove 相同)
-            // ... (省略以减少篇幅) ...
-            const emptyPositions = []; // 保底随机走法
+            // 1. 检查AI必胜
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    if (board[i][j] === 0) {
+                        board[i][j] = 2; // AI
+                        if (checkWin(i, j)) { board[i][j] = 0; console.log("[Worker] HardMove found AI win."); return { row: i, col: j }; }
+                        board[i][j] = 0;
+                    }
+                }
+            }
+            // 2. 检查玩家必胜 (防守)
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    if (board[i][j] === 0) {
+                        board[i][j] = 1; // 玩家
+                        if (checkWin(i, j)) { board[i][j] = 0; console.log("[Worker] HardMove found block."); return { row: i, col: j }; }
+                        board[i][j] = 0;
+                    }
+                }
+            }
+            // 3. 正常评分
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    if (board[i][j] === 0) {
+                        const score = evaluatePositionAdvanced(i, j);
+                        if (score > bestScore) { bestScore = score; bestMove = { row: i, col: j }; }
+                    }
+                }
+            }
+             // 保底随机走法
+            const emptyPositions = [];
             for (let i = 0; i < boardSize; i++) { for (let j = 0; j < boardSize; j++) { if (board[i][j] === 0) emptyPositions.push({ row: i, col: j }); } }
-            return bestMove || (emptyPositions.length > 0 ? emptyPositions[Math.floor(Math.random() * emptyPositions.length)] : null);
+            const finalMove = bestMove || (emptyPositions.length > 0 ? emptyPositions[Math.floor(Math.random() * emptyPositions.length)] : null);
+             console.log("[Worker] HardMove final choice:", finalMove);
+             return finalMove;
         }
         
         // 迭代加深 (IDDFS) 入口 - 包含开局库和强制终结检查
         function getBestMoveIDDFS(startTime, maxDepth) {
             
-            // [开局库.3] 检查开局库 (限制在 8 步内)
-            const bookMove = openingBook.get(currentHash);
+            // [开局库] 检查开局库 (限制在 8 步内)
+            const bookMove = getOpeningMove(); // Opening move check simplified
             if (bookMove && moveHistory.length < 8) {
-                console.log("Using opening book move!");
-                // 确保库里的走法当前是有效的 (以防万一)
+                console.log("[Worker] Using opening book move!");
                 if (board[bookMove.row][bookMove.col] === 0) {
                      return { move: bookMove, depth: 1, timedOut: false };
                 } else {
-                     console.warn("Opening book move is invalid, recalculating.");
+                     console.warn("[Worker] Opening book move is invalid, recalculating.");
                 }
             }
 
-            // [强制终结.1] 检查 AI 是否能一步获胜或需要防守
-            const validMoves = getValidMoves(false); // 获取无排序的走法用于检查
+            // [强制终结] 检查 AI 是否能一步获胜或需要防守
+            const validMovesCheck = getValidMoves(false); // 获取无排序的走法用于检查
             let immediateAiWinMove = null;
             let immediatePlayerBlockMove = null;
 
-            for (const move of validMoves) {
+            for (const move of validMovesCheck) {
                 // 检查 AI 获胜
                 _simulateMove(move.row, move.col, 2); // 模拟 AI 落子
                 if (checkWin(move.row, move.col)) {
@@ -238,9 +246,11 @@
                 if (!immediateAiWinMove) {
                      _simulateMove(move.row, move.col, 1); // 模拟玩家落子
                      if (checkWin(move.row, move.col)) {
-                         immediatePlayerBlockMove = { row: move.row, col: move.col }; // AI 需要下在这里
+                         // 找到第一个需要防守的点就够了，因为AI必胜优先
+                         if (!immediatePlayerBlockMove) {
+                             immediatePlayerBlockMove = { row: move.row, col: move.col };
+                         }
                          _simulateUndo(move.row, move.col, 1); // 撤销模拟
-                         // 继续检查，看后面是否有 AI 能直接赢的 (AI 赢优先)
                      } else {
                          _simulateUndo(move.row, move.col, 1); // 撤销模拟
                      }
@@ -249,16 +259,17 @@
 
             // 如果找到 AI 必胜棋
             if (immediateAiWinMove) {
-                 console.log("Found immediate AI win!");
+                 console.log("[Worker] Found immediate AI win!");
                  return { move: immediateAiWinMove, depth: 1, timedOut: false };
             }
-            // 如果找到需要立即防守的棋
+            // 如果找到需要立即防守的棋 (且没有AI必胜棋)
             if (immediatePlayerBlockMove) {
-                 console.log("Found immediate block required!");
+                 console.log("[Worker] Found immediate block required!");
                  return { move: immediatePlayerBlockMove, depth: 1, timedOut: false };
             }
 
             // --- 如果没有开局库命中和强制终结，则开始 IDDFS ---
+            console.log("[Worker] No immediate win/loss/book. Starting IDDFS.");
             let bestMove = null;
             let bestScore = -Infinity;
             let completedDepth = 0;
@@ -268,38 +279,43 @@
                 
                 const currentTime = performance.now();
                 if ((currentTime - startTime) > TIMEOUT_MS) {
+                    console.log(`[Worker] Timeout before starting depth ${d}.`);
                     break; 
                 }
+                 console.log(`[Worker] Starting search at depth ${d}`);
 
                 const result = minimax_alphabeta(d, -Infinity, +Infinity, true, startTime);
 
                 if (result.timedOut) {
+                     console.log(`[Worker] Search timed out at depth ${d}.`);
                     break; 
                 }
 
-                // 只有当 result.move 有效时才更新 bestMove
+                // 本次深度搜索(d)成功完成。保存结果。
                 if (result.move) {
                     bestMove = result.move;
                     bestScore = result.score;
                     completedDepth = d; 
+                     console.log(`[Worker] Depth ${d} complete. Best move: ${result.move.row},${result.move.col}. Score: ${result.score}`);
                 } else {
-                    // 如果 minimax 返回了 null move (可能发生在根节点无法走棋?)，跳出循环
-                    console.warn(`Minimax returned null move at depth ${d}`);
+                    console.warn(`[Worker] Minimax returned null move at depth ${d}. Stopping iteration.`);
                     break;
                 }
                 
                 if (bestScore > 9000000) { // 找到必胜
+                     console.log(`[Worker] Found winning move at depth ${d}. Stopping iteration.`);
                     break; 
                 }
             }
             
             // 如果超时或搜索未完成，返回上一个深度的结果或保底
             if (bestMove === null) {
-                console.warn("IDDFS couldn't find a move (timeout likely), using hard move.");
+                console.warn("[Worker] IDDFS couldn't find a move (timeout likely or no valid moves), using hard move fallback.");
                 bestMove = getHardMove(); 
                 completedDepth = completedDepth || 1; 
             }
 
+             console.log(`[Worker] Final IDDFS result: Depth ${completedDepth}, Move:`, bestMove);
             return { move: bestMove, score: bestScore, depth: completedDepth };
         }
 
@@ -328,80 +344,78 @@
                 return { score: 0, timedOut: false }; // 平局
             }
 
-            let bestMove = null;
+            let bestMove = null; // Important: Initialize bestMove for this level
             let timedOut = false;
 
             if (isMaximizingPlayer) {
                 let bestScore = -Infinity;
-                bestMove = validMoves[0]; // 初始假设第一个是最好的
+                // Don't set bestMove = validMoves[0] here, let the loop find the first valid one
 
                 for (const move of validMoves) {
                     _simulateMove(move.row, move.col, 2); // AI (2)
                     let score;
-                    // [强制终结.2] 检查模拟后的局面是否 AI 胜利
                     if (checkWin(move.row, move.col)) {
                         score = 10000000 + depth; // 必胜 (10M)
                     } else {
                         const result = minimax_alphabeta(depth - 1, alpha, beta, false, startTime);
                         if (result.timedOut) {
                             timedOut = true;
-                            score = 0; // 这个分数无效
+                            score = 0; 
                         } else {
                             score = result.score;
                         }
                     }
                     _simulateUndo(move.row, move.col, 2);
                     
-                    if (timedOut) return { score: 0, timedOut: true }; // 传播超时
+                    if (timedOut) return { score: 0, timedOut: true }; 
 
                     if (score > bestScore) {
                         bestScore = score;
-                        bestMove = move; // 更新最佳走法
+                        bestMove = move; // Update best move when score improves
                     }
                     alpha = Math.max(alpha, bestScore);
                     if (beta <= alpha) {
                         break; // 剪枝
                     }
                 }
-                // 确保 bestMove 不是 null (如果循环没有执行或所有走法都被剪枝?)
-                 bestMove = bestMove || validMoves[0]; // 保底
+                 // Ensure bestMove is assigned if loop runs
+                 bestMove = bestMove || validMoves[0]; // Fallback if all moves pruned? Should be rare with proper ordering.
                 transpositionTable.set(hash, { depth: depth, score: bestScore });
                 return { score: bestScore, move: bestMove, timedOut: false };
             
             } else { // 轮到 Min (玩家)
                 let bestScore = +Infinity;
-                bestMove = validMoves[0]; // 初始假设第一个是最好的
+                 // Don't set bestMove = validMoves[0] here
 
                 for (const move of validMoves) {
                     _simulateMove(move.row, move.col, 1); // 玩家 (1)
                     let score;
-                     // [强制终结.3] 检查模拟后的局面是否玩家胜利
                     if (checkWin(move.row, move.col)) {
                         score = -10000000 - depth; // 必败 (-10M)
                     } else {
                         const result = minimax_alphabeta(depth - 1, alpha, beta, true, startTime);
                          if (result.timedOut) {
                             timedOut = true;
-                            score = 0; // 这个分数无效
+                            score = 0; 
                         } else {
                             score = result.score;
                         }
                     }
                     _simulateUndo(move.row, move.col, 1);
 
-                    if (timedOut) return { score: 0, timedOut: true }; // 传播超时
+                    if (timedOut) return { score: 0, timedOut: true }; 
 
                     if (score < bestScore) {
                         bestScore = score;
-                        bestMove = move; // 更新最佳走法 (对 Min 来说是分数最低的)
+                        bestMove = move; // Update best move for min player
                     }
                     beta = Math.min(beta, bestScore);
                     if (beta <= alpha) {
                         break; // 剪枝
                     }
                 }
-                 // 确保 bestMove 不是 null
-                bestMove = bestMove || validMoves[0]; // 保底
+                 // Ensure bestMove is assigned
+                 bestMove = bestMove || validMoves[0]; // Fallback
                 transpositionTable.set(hash, { depth: depth, score: bestScore });
                 return { score: bestScore, move: bestMove, timedOut: false };
             }
@@ -418,9 +432,14 @@
             currentHash ^= zobristTable[row][col][player - 1];
         }
 
+        // 开局库 - 硕神模式专用 (AI 先手)
+        function getOpeningMove() {
+            // [开局库.2] 从 openingBook Map 中查找
+            return openingBook.get(currentHash);
+        }
+
         // 获取有效走法 (代码与上一版相同)
         function getValidMoves(withOrdering = false) {
-             // ... (省略以减少篇幅) ...
              const moveSet = new Set();
              const center = Math.floor(boardSize / 2);
              if (moveHistory.length === 0) return [{ row: center, col: center }];
@@ -430,8 +449,11 @@
                       if (dr === 0 && dc === 0) continue;
                       const r = center + dr; const c = center + dc;
                       if (r >= 0 && r < boardSize && c >= 0 && c < boardSize && board[r][c] === 0) moves.push({row: r, col: c});
-                 }} return moves;
+                 }} 
+                 // [开局优化] 玩家第一步也可以选择更远的位置，不限制
+                 // return moves; 
              }
+             
              const radius = 2; // 正常搜索
              for (let r = 0; r < boardSize; r++) { for (let c = 0; c < boardSize; c++) {
                  if (board[r][c] === 0) continue; 
@@ -453,7 +475,6 @@
 
         // 静态棋盘评估 (代码与上一版相同)
         function evaluateBoardHeuristic() {
-             // ... (省略以减少篇幅) ...
              let totalScore = 0; const validMoves = getValidMoves(false);
              for (const move of validMoves) { totalScore += evaluatePositionAdvanced(move.row, move.col); }
              return totalScore;
@@ -461,7 +482,6 @@
 
         // 评估空点价值 (代码与上一版相同)
         function evaluatePositionAdvanced(row, col) {
-            // ... (省略以减少篇幅) ...
             let score = 0; const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
             for (let [dr, dc] of directions) {
                 const aiScore = evaluateLine(row, col, dr, dc, 2); const playerScore = evaluateLine(row, col, dr, dc, 1);
@@ -473,7 +493,6 @@
 
         // 评估连珠情况 (代码与上一版相同)
         function evaluateLine(row, col, dr, dc, player) {
-             // ... (省略以减少篇幅) ...
              let count = 0; let blocks = 0;
              for (let i = 1; i <= 4; i++) { // 正向
                  const r = row + dr * i; const c = col + dc * i;
@@ -493,7 +512,6 @@
 
         // 检查胜利 (代码与上一版相同)
         function checkWin(row, col) {
-             // ... (省略以减少篇幅) ...
              const directions = [ [0, 1], [1, 0], [1, 1], [1, -1] ]; const player = board[row][col]; if (player === 0) return false;
              for (let [dr, dc] of directions) {
                  let count = 1; let r = row + dr, c = col + dc;
@@ -515,7 +533,7 @@
                 this.cellSize = Math.floor(Math.min(maxCanvasWidth / (this.boardSize + 1), 40));
 
                 this.board = Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
-                // [AI瞬时开局] 初始 currentPlayer 设为 2 (AI)，但 UI 上会显示玩家
+                // [修复卡死.1] 初始 currentPlayer 设为 2 (AI)，等待 AI 完成第一步
                 this.currentPlayer = 2; 
                 this.gameOver = false;
                 this.winner = null;
@@ -549,6 +567,14 @@
                     this.aiWorker.onmessage = (e) => {
                         this.receiveAiMove(e.data);
                     };
+                     // 添加 Worker 错误处理
+                    this.aiWorker.onerror = (e) => {
+                         console.error("AI Worker Error:", e.message, e);
+                         alert("AI 线程发生错误，请刷新页面重试。");
+                         const aiThinkingEl = document.getElementById('aiThinking');
+                         aiThinkingEl.innerHTML = `❌ AI 错误! 请刷新.`;
+                         this.gameOver = true; // 停止游戏
+                    };
                 } catch (error) {
                     console.error("无法创建 AI Worker: ", error);
                     alert("加载AI线程失败！请检查浏览器兼容性或刷新页面。");
@@ -560,23 +586,18 @@
                 this.setupEventListeners();
                 this.loadBestTime();
                 
-                // [AI瞬时开局.1] 延迟执行 AI 的第一步，确保 UI 先渲染
-                 // 并确保在 DOMContentLoaded 之后执行
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', () => this.performAiFirstMove());
-                } else {
-                    setTimeout(() => { this.performAiFirstMove(); }, 0); 
-                }
+                // [修复卡死.2] 构造函数不再调用 performAiFirstMove
+                // 它将在 DOMContentLoaded 中被调用
             }
             
-            // [AI瞬时开局.2] AI 第一步逻辑
+            // AI 第一步逻辑
             performAiFirstMove() {
                 // 确保只在游戏开始时执行一次
                 if (this.moveHistory.length === 0 && !this.gameOver) {
                     const center = Math.floor(this.boardSize / 2);
                     if (this.board[center][center] === 0) {
                         
-                        console.log("AI performs instant first move.");
+                        console.log("[Main] AI performs instant first move.");
                         
                         // 直接修改状态，不通过 makeMove 
                         this.board[center][center] = 2; // AI (白棋) 落子
@@ -586,7 +607,12 @@
                         
                         this.drawBoard(); // 重绘棋盘
                         this.updateCurrentPlayer(); // 更新UI显示轮到玩家 (此时还不计时)
+                         console.log("[Main] AI first move complete. Current player:", this.currentPlayer);
+                    } else {
+                        console.error("[Main] Center is not empty for AI first move?");
                     }
+                } else {
+                     console.log("[Main] performAiFirstMove called but not applicable (history:", this.moveHistory.length, "gameOver:", this.gameOver, ")");
                 }
             }
 
@@ -715,6 +741,7 @@
                 this.clickHandler = (e) => {
                     if (this.gameOver) return;
                     if (this.currentPlayer === 2) return; // AI 回合不能点
+                    console.log("[Main] Player clicked.");
                     const rect = this.canvas.getBoundingClientRect();
                     const scaleX = this.canvas.width / rect.width;
                     const scaleY = this.canvas.height / rect.height;
@@ -723,7 +750,10 @@
                     const col = Math.round(canvasX / this.cellSize) - 1;
                     const row = Math.round(canvasY / this.cellSize) - 1;
                     if (this.isValidMove(row, col)) {
+                         console.log(`[Main] Player making move at ${row}, ${col}`);
                         this.makeMove(row, col);
+                    } else {
+                         console.log(`[Main] Invalid move clicked at ${row}, ${col}`);
                     }
                 };
                 this.canvas.addEventListener('click', this.clickHandler);
@@ -738,13 +768,15 @@
 
             // 玩家或AI的 *真实* 落子
             makeMove(row, col) {
+                console.log(`[Main] makeMove called by player ${this.currentPlayer} at ${row}, ${col}`);
                 // 玩家落子，停止计时
                 if (!this.gameOver && this.currentPlayer === 1) {
                    this.stopPlayerTimer();
                 }
                 
                 // 游戏总计时在玩家下第一步后开始 (moveHistory 从 0 (AI) -> 1 (玩家) 时)
-                if (this.moveHistory.length === 1) { // AI 已走一步，这是玩家第一步
+                if (this.moveHistory.length === 1 && this.currentPlayer === 1) { 
+                    console.log("[Main] Starting main game timer.");
                     this.startTimer(); // 游戏总计时开始
                 }
 
@@ -754,32 +786,39 @@
                 this.drawBoard();
 
                 if (this.checkWin(row, col)) {
+                    console.log(`[Main] Player ${this.currentPlayer} wins!`);
                     this.gameOver = true;
                     this.winner = this.currentPlayer;
                     this.stopTimer(); 
                     this.stopPlayerTimer(); 
                     this.showWinner();
                 } else if (this.isBoardFull()) {
+                     console.log("[Main] Board is full, draw!");
                     this.gameOver = true;
                     this.stopTimer(); 
                     this.stopPlayerTimer(); 
                     this.showDraw();
                 } else {
+                    const previousPlayer = this.currentPlayer;
                     this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                    console.log(`[Main] Switched player. Current player is now: ${this.currentPlayer}`);
                     
                     // 轮到 AI
                     if (this.currentPlayer === 2) {
                          // AI 下棋前先更新 UI，显示轮到 AI
                          this.updateCurrentPlayer();
+                         console.log("[Main] Calling aiMove...");
                          this.aiMove();
                     } 
                     // 轮到玩家
                     else {
                         // 只有在玩家下了第一步棋之后 (即 history >= 2) 才启动计时器
                         if (this.moveHistory.length >= 2) {
+                             console.log("[Main] Starting player timer.");
                             this.startPlayerTimer();
                         } else {
                             // 玩家第一步后，不启动计时器，但需要更新 UI
+                             console.log("[Main] Player's turn after AI's first move. Updating UI.");
                             this.updateCurrentPlayer(); 
                         }
                     }
@@ -788,7 +827,10 @@
             
             // aiMove 交给 Web Worker
             aiMove() {
-                 if (this.gameOver) return; // 防止游戏结束后 AI 仍然思考
+                 if (this.gameOver || this.currentPlayer !== 2) {
+                     console.warn("[Main] aiMove called incorrectly. Game Over:", this.gameOver, "Current Player:", this.currentPlayer);
+                     return; 
+                 }
 
                 const aiThinkingEl = document.getElementById('aiThinking');
                  // 固定为硕神模式的提示
@@ -797,6 +839,7 @@
                 aiThinkingEl.innerHTML = thinkingText;
                 aiThinkingEl.style.display = 'block';
 
+                 console.log("[Main] Posting message to AI worker.");
                 // 将当前状态发给 Worker 线程
                 this.aiWorker.postMessage({
                     board: this.board,
@@ -811,12 +854,18 @@
             
             // 接收 Worker 的计算结果
             receiveAiMove(moveData) {
+                 console.log("[Main] Received message from AI worker:", moveData);
                 const { move, duration, depth } = moveData; 
                 
                 // 如果游戏已经结束了（比如玩家在AI思考时刷新或重开），则不处理AI结果
                 if (this.gameOver) {
-                    console.log("Game over, ignoring AI move.");
+                    console.log("[Main] Game over, ignoring AI move.");
                     return;
+                }
+                 // 增加检查：确保现在确实轮到 AI
+                if (this.currentPlayer !== 2) {
+                    console.warn("[Main] Received AI move but it's not AI's turn? Current player:", this.currentPlayer);
+                    return; 
                 }
                 
                 const aiThinkingEl = document.getElementById('aiThinking');
@@ -849,15 +898,23 @@
                 if (move) {
                     // 再次检查游戏状态，并且当前必须轮到 AI (player 2)
                     if (!this.gameOver && this.currentPlayer === 2 && this.isValidMove(move.row, move.col)) {
+                         console.log(`[Main] AI making move at ${move.row}, ${move.col}`);
                         this.makeMove(move.row, move.col);
                     } else if (!this.gameOver && this.currentPlayer === 2) {
-                         console.error("AI Worker 返回了一个无效走法: ", move);
+                         console.error("[Main] AI Worker returned an invalid move:", move, "Current board state prevents it.");
                          const randomMove = this.getRandomMoveForMainThread();
-                         if(randomMove) this.makeMove(randomMove.row, randomMove.col);
+                         if(randomMove) {
+                             console.warn("[Main] AI making random fallback move.");
+                             this.makeMove(randomMove.row, randomMove.col);
+                         } else {
+                              console.error("[Main] AI cannot make a random move either (board full?).");
+                              this.showDraw(); // Or handle error appropriately
+                         }
                     } else {
-                         console.log("Ignoring AI move received after turn changed or game ended.");
+                         console.log("[Main] Ignoring AI move received after turn changed or game ended. Current player:", this.currentPlayer);
                     }
                 } else {
+                     console.warn("[Main] AI Worker returned null move.");
                     aiThinkingEl.innerHTML = '🤔 游戏结束? (AI无棋可走)';
                 }
             }
@@ -981,7 +1038,11 @@
             // 启动玩家计时器
             startPlayerTimer() {
                 // [玩家计时.启动逻辑修正] 确保游戏未结束且确实轮到玩家
-                if (this.gameOver || this.currentPlayer !== 1) return; 
+                if (this.gameOver || this.currentPlayer !== 1) {
+                     console.log("[Main] Attempted to start player timer, but conditions not met. Game Over:", this.gameOver, "Current Player:", this.currentPlayer);
+                     return; 
+                 }
+                 console.log("[Main] Starting player timer...");
                 
                 this.stopPlayerTimer(); // 先清除旧的
                 this.playerTimeLeft = 10;
@@ -989,7 +1050,8 @@
                 
                 this.playerTimerId = setInterval(() => {
                     // 再次检查，防止计时器在不该跑的时候跑
-                     if (this.gameOver || this.currentPlayer !== 1) {
+                     if (this.gameOver || this.currentPlayer !== 1 || this.playerTimerId === null) { // Added null check
+                         console.log("[Main] Player timer interval running, but conditions no longer met. Stopping.");
                          this.stopPlayerTimer();
                          return;
                      }
@@ -998,34 +1060,34 @@
                     this.updateCurrentPlayer(); // 更新显示
                     
                     if (this.playerTimeLeft <= 0) {
+                         console.log("[Main] Player timer reached 0.");
                         this.forceRandomMove();
                     }
                 }, 1000); // 每秒执行
             }
             
-            // 停止玩家计时器
+            // [修复卡死.3] 简化 stopPlayerTimer
             stopPlayerTimer() {
-                 if (this.playerTimerId) {
+                 if (this.playerTimerId !== null) { // Check if ID exists before clearing
+                     console.log("[Main] Stopping player timer.");
                     clearInterval(this.playerTimerId);
                     this.playerTimerId = null; // 清除 ID 很重要
                 }
-                 // 清除计时显示 
+                 // 清除计时显示 (即使计时器不存在也尝试清除)
                  const playerTimerSpan = document.getElementById('playerTimeLeft');
                  if(playerTimerSpan) playerTimerSpan.textContent = '';
-                 // 确保UI立即更新为不带计时器状态 (如果当前是玩家回合)
-                 if (!this.gameOver && this.currentPlayer === 1) {
-                     // 调用 updateCurrentPlayer 可能会意外启动计时器，直接设置文本
-                     const playerText = '<span class="player-black">● 你（黑棋）</span>';
-                     document.getElementById('currentPlayer').innerHTML = '当前玩家：' + playerText;
-                 }
+                 
+                 // 不再调用 updateCurrentPlayer
             }
             
             // 强制随机落子
             forceRandomMove() {
-                 this.stopPlayerTimer(); // 确保停止
+                 // 确保停止计时器（可能已被调用，但再次确保）
+                 this.stopPlayerTimer(); 
+                 
                  if (this.gameOver || this.currentPlayer !== 1) return; // 游戏已结束或不是玩家回合
                  
-                 console.warn("玩家超时，强制随机落子！");
+                 console.warn("[Main] Player timed out, forcing random move!");
                  const randomMove = this.getRandomMoveForMainThread();
                  
                  // 短暂提示
@@ -1037,18 +1099,24 @@
                      // 延迟一点点执行，让提示能被看到
                      setTimeout(() => {
                          // 检查游戏是否在延迟期间结束了，并且确认现在是玩家回合
-                         if (!this.gameOver && this.currentPlayer === 1) {
-                            // 强制落子也算一步有效操作
+                         // 增加检查：确保该位置仍然是空的（防止极罕见的竞争）
+                         if (!this.gameOver && this.currentPlayer === 1 && this.isValidMove(randomMove.row, randomMove.col)) {
+                            console.log(`[Main] Making forced random move at ${randomMove.row}, ${randomMove.col}`);
                             this.makeMove(randomMove.row, randomMove.col); 
+                         } else {
+                             console.warn("[Main] Could not make forced random move (game over, turn changed, or cell occupied).");
                          }
-                     }, 500);
+                     }, 100); // 缩短延迟
                  } else {
+                     console.error("[Main] Player timed out but no valid random move found (board full?).");
                      aiThinkingEl.innerHTML = `⏰ 时间到！但棋盘已满？`;
+                     this.showDraw(); // 如果没棋可走，判平局
                  }
             }
 
 
             _internalReset() {
+                 console.log("[Main] Internal reset called.");
                 this.board = Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
                 this.currentPlayer = 2; // AI 先手
                 this.gameOver = false;
@@ -1067,30 +1135,32 @@
             }
             
             startNewGame() { 
+                 console.log("[Main] Starting new game...");
                 this._internalReset();
-                // [AI瞬时开局.3] 重开游戏时，也立即执行 AI 第一步
-                 // 使用 setTimeout 确保 UI 渲染完成后再执行
+                // [修复卡死.4] 使用 setTimeout 确保 UI 渲染完成后再执行 AI 第一步
                 setTimeout(() => {
                      this.performAiFirstMove();
                 }, 0);
             }
 
             startTimer() {
-                if (this.timerInterval) return; // 防止重复启动
+                if (this.timerInterval) return; 
+                console.log("[Main] Starting main game timer.");
                 this.startTime = Date.now() - this.elapsedTime;
                 this.timerInterval = setInterval(() => {
-                    // 只有游戏进行中才计时
                     if (!this.gameOver) {
                         this.elapsedTime = Date.now() - this.startTime;
                         this.updateTimerDisplay();
                     } else {
-                        this.stopTimer(); // 游戏结束，停止计时
+                        console.log("[Main] Game over detected in timer interval. Stopping main timer.");
+                        this.stopTimer(); 
                     }
                 }, 100); 
             }
 
             stopTimer() {
                 if (this.timerInterval) {
+                     console.log("[Main] Stopping main game timer.");
                     clearInterval(this.timerInterval);
                     this.timerInterval = null;
                 }
@@ -1129,12 +1199,14 @@
         function restartGame() {
             if (!game) return;
             if (confirm('确定要重新开始游戏吗？（硕神AI将立即在天元落子）')) {
+                 console.log("[Main] Restart button clicked.");
                 game.startNewGame(); 
             }
         }
         
         // 等待HTML加载完毕后，才初始化游戏
         document.addEventListener('DOMContentLoaded', () => {
+             console.log("[Main] DOMContentLoaded. Initializing game.");
             // 直接初始化硕神模式
             game = new GomokuGame();
             
@@ -1158,6 +1230,7 @@
                  li.innerHTML = ruleText; // 使用 innerHTML 支持加粗
                  rulesList.appendChild(li);
              });
+              console.log("[Main] Game initialization complete.");
         });
     </script>
 </body>
