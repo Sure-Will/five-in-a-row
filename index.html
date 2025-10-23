@@ -131,7 +131,7 @@
         let zobristTable, currentHash, moveHistory;
         let transpositionTable = new Map();
 
-        const TIMEOUT_MS = 10000; // 10 秒 AI 熔断（地狱模式）
+        const TIMEOUT_MS = 5000; // 5 秒 AI 熔断（地狱模式）
 
         // --- 核心入口：接收主线程消息 ---
         self.onmessage = function(e) {
@@ -1165,7 +1165,7 @@
 
                 const aiThinkingEl = document.getElementById('aiThinking');
                  // 固定为硕神模式的提示
-                let thinkingText = `🔥 硕神思考中... (地狱模式 D:${this.GOD_DEPTH}, 10s熔断)`;
+                let thinkingText = `🔥 硕神思考中... (地狱模式 D:${this.GOD_DEPTH}, 5s熔断)`;
 
                 aiThinkingEl.innerHTML = thinkingText;
                 aiThinkingEl.style.display = 'block';
@@ -1206,7 +1206,7 @@
 
                 let durationText = `(用时 ${duration}s)`;
                 // TIMEOUT_MS 在 Worker 中定义，这里用字面量
-                if (parseFloat(duration) >= 10.0) {
+                if (parseFloat(duration) >= 5.0) {
                     durationText = `(超时 ${duration}s, 返回D:${depth}结果)`;
                 }
 
@@ -1547,7 +1547,7 @@
                  '点击棋盘空白处落子',
                  '先将五个棋子连成一线者获胜（横、竖、斜均可）',
                  '玩家**第一步后**每步思考时间不得超过5秒，超时将随机落子',
-                 'AI 每步思考时间上限10秒（VCF深度20，VCT深度15，Minimax深度8）',
+                 'AI 每步思考时间上限5秒（VCF深度20，VCT深度15，Minimax深度8）',
                  '**无悔棋**'
             ];
              rules.forEach(ruleText => {
