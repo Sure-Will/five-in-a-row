@@ -92,6 +92,16 @@
             transition: all 0.3s;
             font-weight: bold;
         }
+        
+        /* [地狱难度.1] 红色按钮 */
+        .diff-btn[onclick*="'hell'"] {
+            border-color: #f44336;
+            color: #f44336;
+        }
+        .diff-btn[onclick*="'hell'"].active {
+            background: #f44336;
+            color: white;
+        }
 
         .diff-btn.active {
             background: #4caf50;
@@ -326,6 +336,7 @@
             <button class="diff-btn" onclick="setDifficulty('medium', event)">中等</button>
             <button class="diff-btn" onclick="setDifficulty('hard', event)">困难</button>
             <button class="diff-btn" onclick="setDifficulty('nightmare', event)">😱 噩梦</button>
+            <button class="diff-btn" onclick="setDifficulty('hell', event)">🔥 地狱</button>
         </div>
 
         <div class="game-info">
@@ -382,8 +393,8 @@
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
-                this.gameMode = gameMode; // 'pvp' or 'ai'
-                this.difficulty = difficulty; // 'easy', 'medium', 'hard', 'nightmare'
+                this.gameMode = gameMode; 
+                this.difficulty = difficulty; 
 
                 // 计时器相关
                 this.startTime = null;
@@ -393,11 +404,38 @@
                 this.canvas = document.getElementById('gameBoard');
                 this.ctx = this.canvas.getContext('2d');
 
+                // [地狱难度.3] AI 核心
+                this.HELL_DEPTH = 4; // 搜索4层
+                this.zobristTable = [];
+                this.currentHash = 0;
+                this.transpositionTable = new Map();
+                this.initZobrist();
+
                 this.initCanvas();
                 this.drawBoard();
                 this.setupEventListeners();
                 this.loadBestTime();
             }
+            
+            // [地狱难度.4] 初始化 Zobrist 哈希表
+            initZobrist() {
+                this.zobristTable = Array(this.boardSize).fill(null).map(() => 
+                    Array(this.boardSize).fill(null).map(() => 
+                        Array(2).fill(null) // 2个玩家
+                    )
+                );
+                
+                for (let i = 0; i < this.boardSize; i++) {
+                    for (let j = 0; j < this.boardSize; j++) {
+                        for (let k = 0; k < 2; k++) {
+                            // 生成 32 位随机整数 (JS安全整数是53位, 32位足够)
+                            this.zobristTable[i][j][k] = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+                        }
+                    }
+                }
+                this.currentHash = 0;
+            }
+
 
             initCanvas() {
                 const size = this.cellSize * (this.boardSize + 1);
@@ -441,7 +479,6 @@
                 };
 
                 if (boardSize === 15) {
-                    // 标准15路棋盘的星位
                     drawDot(3, 3);
                     drawDot(11, 3);
                     drawDot(3, 11);
@@ -461,7 +498,6 @@
                 // 绘制AI最后一步的标记
                 if (this.moveHistory.length > 0) {
                     const lastMove = this.moveHistory[this.moveHistory.length - 1];
-                    // 只标记AI(玩家2)的棋
                     if (this.gameMode === 'ai' && lastMove.player === 2) {
                         this.highlightLastMove(lastMove.row, lastMove.col);
                     }
@@ -550,6 +586,7 @@
                 return this.board[row][col] === 0;
             }
 
+            // 玩家或AI的 *真实* 落子
             makeMove(row, col) {
                 if (this.moveHistory.length === 0) {
                     this.startTimer();
@@ -557,6 +594,10 @@
 
                 this.board[row][col] = this.currentPlayer;
                 this.moveHistory.push({ row, col, player: this.currentPlayer });
+                
+                // [地狱难度.5] 更新主哈希
+                this.currentHash ^= this.zobristTable[row][col][this.currentPlayer - 1];
+                
                 this.drawBoard();
 
                 if (this.checkWin(row, col)) {
@@ -585,8 +626,11 @@
                 aiThinkingEl.innerHTML = '🤖 AI思考中...';
                 aiThinkingEl.style.display = 'block';
 
+                // 延迟执行 (为了让 "思考中" 先显示出来)
                 setTimeout(() => {
                     let move;
+                    
+                    const startTime = performance.now(); // 记录思考开始时间
 
                     if (this.difficulty === 'easy') {
                         move = this.getRandomMove();
@@ -596,17 +640,25 @@
                         move = this.getHardMove();
                     } else if (this.difficulty === 'nightmare') {
                         move = this.getNightmareMove(); 
+                    } else if (this.difficulty === 'hell') {
+                        // [地狱难度.6] 调用新的AI
+                        move = this.getHellMove();
                     }
 
+                    const endTime = performance.now();
+                    const duration = ((endTime - startTime) / 1000).toFixed(2);
+                    console.log(`AI (${this.difficulty}) 思考用时: ${duration} s`);
+
                     if (move) {
-                        aiThinkingEl.innerHTML = '✅ 轮到你了！'; 
+                        aiThinkingEl.innerHTML = `✅ 轮到你了！ (用时 ${duration}s)`; 
                         this.makeMove(move.row, move.col);
                     } else {
                         aiThinkingEl.innerHTML = '🤔 游戏结束?';
                     }
-                }, 500); 
+                }, 50); // 仅延迟50ms
             }
 
+            // 简单AI
             getRandomMove() {
                 const emptyPositions = [];
                 for (let i = 0; i < this.boardSize; i++) {
@@ -616,17 +668,16 @@
                         }
                     }
                 }
-
                 if (emptyPositions.length > 0) {
                     return emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
                 }
                 return null;
             }
 
+            // 中等AI
             getMediumMove() {
                 let bestScore = -Infinity;
                 let bestMove = null;
-
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
                         if (this.board[i][j] === 0) {
@@ -638,14 +689,13 @@
                         }
                     }
                 }
-
                 return bestMove || this.getRandomMove(); 
             }
 
+            // 困难AI
             getHardMove() {
                 let bestScore = -Infinity;
                 let bestMove = null;
-
                 // 1. 检查AI必胜
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
@@ -659,7 +709,6 @@
                         }
                     }
                 }
-
                 // 2. 检查玩家必胜 (防守)
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
@@ -673,7 +722,6 @@
                         }
                     }
                 }
-
                 // 3. 正常评分
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
@@ -686,79 +734,34 @@
                         }
                     }
                 }
-
                 return bestMove || this.getRandomMove();
             }
-
+            
+            // 噩梦AI (2层 Minimax)
             getNightmareMove() {
-                const openingMove = this.getOpeningMove();
-                if (openingMove) {
-                    return openingMove;
-                }
-                return this.runMinimax();
-            }
-
-            getOpeningMove() {
-                if (this.difficulty === 'nightmare') {
-                    // AI(2) 先手 (天元) -> Player(1) 走 (r, c)
-                    // 此时 history.length = 2
-                    if (this.boardSize !== 15 || this.moveHistory.length !== 2) {
-                        return null;
-                    }
-                    
-                    const centerMove = this.moveHistory[0]; // AI (2)
-                    const userMove = this.moveHistory[1];   // Player (1)
-                    
-                    const center = Math.floor(this.boardSize / 2);
-                    if (centerMove.row !== center || centerMove.col !== center) {
-                        return null; 
-                    }
-
-                    const dr = userMove.row - centerMove.row; 
-                    const dc = userMove.col - centerMove.col; 
-
-                    let aiMove = null;
-
-                    // 规则1: 你走在了 "斜" 侧
-                    if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
-                        aiMove = { row: centerMove.row + dr, col: centerMove.col };
-                    }
-                    // 规则2: 你走在了 "直" 侧
-                    else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) {
-                        aiMove = { row: centerMove.row + dc, col: centerMove.col + dr };
-                    }
-
-                    if (aiMove && this.isValidMove(aiMove.row, aiMove.col)) {
-                        return aiMove;
-                    }
-                }
-                return null;
-            }
-
-            runMinimax() {
+                const openingMove = this.getOpeningMove(this.difficulty);
+                if (openingMove) return openingMove;
+                
                 let bestScore = -Infinity;
                 let bestMove = null;
-                const validMoves = this.getValidMoves();
+                const validMoves = this.getValidMoves(false); // false = 无排序
                 
                 if (validMoves.length === 1) return validMoves[0]; 
 
                 for (let move1 of validMoves) {
-                    // 1. AI 尝试走一步
-                    this.board[move1.row][move1.col] = 2; // AI (2)
+                    this._simulateMove(move1.row, move1.col, 2); // AI (2)
                     if (this.checkWin(move1.row, move1.col)) {
-                        this.board[move1.row][move1.col] = 0;
+                        this._simulateUndo(move1.row, move1.col, 2);
                         return move1; // 立即获胜
                     }
                     
-                    // [BUG FIX] AI走完 (move1) 后，立刻计算AI的得分
                     const aiScore = this.evaluatePositionAdvanced(move1.row, move1.col);
                     
                     let minOpponentScore = +Infinity;
-                    const opponentValidMoves = this.getValidMoves();
+                    const opponentValidMoves = this.getValidMoves(false);
 
                     for (let move2 of opponentValidMoves) {
-                        // 2. 玩家尝试应对
-                        this.board[move2.row][move2.col] = 1; // Player (1)
+                        this._simulateMove(move2.row, move2.col, 1); // Player (1)
                         
                         let currentScore = 0;
                         if (this.checkWin(move2.row, move2.col)) {
@@ -767,23 +770,192 @@
                             const playerScore = this.evaluatePositionAdvanced(move2.row, move2.col);
                             currentScore = aiScore - playerScore * 1.5; 
                         }
-
                         minOpponentScore = Math.min(minOpponentScore, currentScore);
-                        this.board[move2.row][move2.col] = 0; // 撤销玩家走法
+                        this._simulateUndo(move2.row, move2.col, 1); 
                     }
                     
                     if (minOpponentScore > bestScore) {
                         bestScore = minOpponentScore;
                         bestMove = move1;
                     }
-
-                    this.board[move1.row][move1.col] = 0; // 撤销AI走法
+                    this._simulateUndo(move1.row, move1.col, 2); 
                 }
-                
-                return bestMove || this.getRandomMove(); // 保底
+                return bestMove || this.getRandomMove();
             }
 
-            getValidMoves() {
+            // [地狱难度.7] "地狱" 难度 AI 入口
+            getHellMove() {
+                // 1. 检查开局库
+                const openingMove = this.getOpeningMove(this.difficulty);
+                if (openingMove) {
+                    return openingMove;
+                }
+                
+                // 2. 清空置换表 (开始一次全新的搜索)
+                this.transpositionTable.clear();
+
+                // 3. 运行 Alpha-Beta 搜索
+                // (true = 轮到 Maximizing Player, 即 AI)
+                const bestMoveResult = this.minimax_alphabeta(
+                    this.HELL_DEPTH, 
+                    -Infinity, 
+                    +Infinity, 
+                    true 
+                );
+
+                // 4. 返回找到的最佳走法
+                return bestMoveResult.move || this.getRandomMove(); // 保底
+            }
+
+            // [地狱难度.8] 核心：带 Alpha-Beta 剪枝的 Minimax
+            minimax_alphabeta(depth, alpha, beta, isMaximizingPlayer) {
+                
+                // 1. 检查置换表
+                const hash = this.currentHash;
+                const cached = this.transpositionTable.get(hash);
+                if (cached && cached.depth >= depth) {
+                    // 找到缓存，直接返回（注意：只返回分数）
+                    return { score: cached.score };
+                }
+
+                // 2. 检查递归终止条件 (深度为0)
+                if (depth === 0) {
+                    // 到达叶节点，进行 "静态评估"
+                    const score = this.evaluateBoardHeuristic();
+                    return { score: score };
+                }
+
+                // 3. 获取走法 (带启发式排序)
+                // (排序能极大提升剪枝效率)
+                const validMoves = this.getValidMoves(true); 
+
+                // 4. 检查棋盘是否已满 (没有可走的路)
+                if (validMoves.length === 0) {
+                    return { score: 0 }; // 平局
+                }
+
+                let bestMove = null;
+
+                // 5. 轮到 Max (AI)
+                if (isMaximizingPlayer) {
+                    let bestScore = -Infinity;
+                    bestMove = validMoves[0]; // 默认选第一个
+
+                    for (const move of validMoves) {
+                        this._simulateMove(move.row, move.col, 2); // AI (2)
+
+                        let score;
+                        // 检查是否获胜 (终端节点)
+                        if (this.checkWin(move.row, move.col)) {
+                            score = 1e9 + depth; // 偏爱更早的胜利 (depth 越大)
+                        } else {
+                            // 递归
+                            score = this.minimax_alphabeta(depth - 1, alpha, beta, false).score;
+                        }
+                        
+                        this._simulateUndo(move.row, move.col, 2);
+
+                        // 更新最佳分数
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = move;
+                        }
+                        alpha = Math.max(alpha, bestScore);
+                        
+                        // Alpha-Beta 剪枝
+                        if (beta <= alpha) {
+                            break; 
+                        }
+                    }
+                    
+                    // 存入置换表
+                    this.transpositionTable.set(hash, { depth: depth, score: bestScore });
+                    return { score: bestScore, move: bestMove };
+                
+                // 6. 轮到 Min (玩家)
+                } else {
+                    let bestScore = +Infinity;
+                    bestMove = validMoves[0];
+
+                    for (const move of validMoves) {
+                        this._simulateMove(move.row, move.col, 1); // 玩家 (1)
+
+                        let score;
+                        // 检查是否获胜 (终端节点)
+                        if (this.checkWin(move.row, move.col)) {
+                            score = -1e9 - depth; // 偏爱更晚的失败 (depth 越大)
+                        } else {
+                            // 递归
+                            score = this.minimax_alphabeta(depth - 1, alpha, beta, true).score;
+                        }
+                        
+                        this._simulateUndo(move.row, move.col, 1);
+
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestMove = move;
+                        }
+                        beta = Math.min(beta, bestScore);
+                        
+                        // Alpha-Beta 剪枝
+                        if (beta <= alpha) {
+                            break; 
+                        }
+                    }
+                    
+                    // 存入置换表
+                    this.transpositionTable.set(hash, { depth: depth, score: bestScore });
+                    return { score: bestScore, move: bestMove };
+                }
+            }
+
+
+            // [地狱难度.9] (新增) 模拟落子 (只改棋盘和哈希)
+            _simulateMove(row, col, player) {
+                this.board[row][col] = player;
+                this.currentHash ^= this.zobristTable[row][col][player - 1];
+            }
+            // [地狱难度.10] (新增) 模拟悔棋
+            _simulateUndo(row, col, player) {
+                this.board[row][col] = 0;
+                this.currentHash ^= this.zobristTable[row][col][player - 1];
+            }
+
+            // 开局库
+            getOpeningMove(difficulty) {
+                const center = Math.floor(this.boardSize / 2);
+
+                // AI 先手 (噩梦 / 地狱)
+                if (difficulty === 'nightmare' || difficulty === 'hell') {
+                    // AI 第一步：走天元
+                    if (this.moveHistory.length === 0) {
+                        return { row: center, col: center };
+                    }
+                    // AI 第二步 (应对玩家的第1步)
+                    if (this.boardSize === 15 && this.moveHistory.length === 2) {
+                        const centerMove = this.moveHistory[0]; // AI (2)
+                        const userMove = this.moveHistory[1];   // Player (1)
+                        if (centerMove.row !== center || centerMove.col !== center) return null; 
+
+                        const dr = userMove.row - centerMove.row; 
+                        const dc = userMove.col - centerMove.col; 
+
+                        let aiMove = null;
+                        if (Math.abs(dr) === 1 && Math.abs(dc) === 1) { // 斜
+                            aiMove = { row: centerMove.row + dr, col: centerMove.col }; // 直
+                        } else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) { // 直
+                            aiMove = { row: centerMove.row + dc, col: centerMove.col + dr }; // 斜
+                        }
+                        if (aiMove && this.isValidMove(aiMove.row, aiMove.col)) {
+                            return aiMove;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            // 获取有效走法 (可带排序)
+            getValidMoves(withOrdering = false) {
                 const moveSet = new Set();
                 const center = Math.floor(this.boardSize / 2);
 
@@ -795,7 +967,6 @@
                 for (let r = 0; r < this.boardSize; r++) {
                     for (let c = 0; c < this.boardSize; c++) {
                         if (this.board[r][c] === 0) continue; 
-
                         for (let dr = -radius; dr <= radius; dr++) {
                             for (let dc = -radius; dc <= radius; dc++) {
                                 if (dr === 0 && dc === 0) continue;
@@ -813,22 +984,56 @@
                     }
                 }
                 
-                return Array.from(moveSet).map(s => {
+                // Set 转为 Array
+                const moves = Array.from(moveSet).map(s => {
                     const [row, col] = s.split(',').map(Number);
                     return { row, col };
                 });
+
+                // [地狱难度.11] 走法排序
+                if (withOrdering) {
+                    const scoredMoves = moves.map(move => {
+                        // 使用 "评估单个点" 的函数给走法打分
+                        const score = this.evaluatePositionAdvanced(move.row, move.col);
+                        return { move, score };
+                    });
+                    // 按分数降序排列 (分数越高的越好，优先搜索)
+                    scoredMoves.sort((a, b) => b.score - a.score);
+                    return scoredMoves.map(item => item.move);
+                }
+
+                return moves;
             }
 
+            // [地狱难度.12] (新增) 静态棋盘评估 (Minimax 叶节点用)
+            // 这是一个 "还可以" 的评估，它只计算 "有效落子点" 的分数总和
+            evaluateBoardHeuristic() {
+                let totalScore = 0;
+                // false = 不排序，快
+                const validMoves = this.getValidMoves(false); 
+                
+                for (const move of validMoves) {
+                    // evaluatePositionAdvanced 包含 (AI进攻分 + 玩家防守分)
+                    totalScore += this.evaluatePositionAdvanced(move.row, move.col);
+                }
+                return totalScore;
+            }
+
+            // 评估 (r, c) 这个 *空点* 的价值 (攻+防)
             evaluatePositionAdvanced(row, col) {
                 let score = 0;
                 const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
                 for (let [dr, dc] of directions) {
-                    const aiScore = this.evaluateLine(row, col, dr, dc, 2);
-                    const playerScore = this.evaluateLine(row, col, dr, dc, 1);
+                    const aiScore = this.evaluateLine(row, col, dr, dc, 2); // AI 在此落子
+                    const playerScore = this.evaluateLine(row, col, dr, dc, 1); // 玩家在此落子
+                    
+                    // 核心：AI得分 + 玩家(防守)得分
+                    // 玩家的威胁分 权重更高 (1.1倍)
                     score += aiScore + (playerScore * 1.1); 
                 }
 
+                // 中心位置加分
                 const center = Math.floor(this.boardSize / 2);
                 const distToCenter = Math.abs(row - center) + Math.abs(col - center);
                 score += (this.boardSize - distToCenter) * 0.5;
@@ -836,6 +1041,7 @@
                 return score;
             }
 
+            // 评估在 (r, c) 落子后，在 [dr, dc] 方向上的连珠情况
             evaluateLine(row, col, dr, dc, player) {
                 let count = 0; 
                 let blocks = 0; 
@@ -876,10 +1082,11 @@
                     }
                 }
 
+                // [地狱难度.13] 调整评分 (大幅提高活三、活四)
                 if (count >= 4) return 500000; // 成五
                 if (count === 3 && blocks === 0) return 50000; // 活四
                 if (count === 3 && blocks === 1) return 5000;  // 冲四
-                if (count === 2 && blocks === 0) return 5000;  // 活三
+                if (count === 2 && blocks === 0) return 5000;  // 活三 (!! 活三和冲四一样重要 !!)
                 if (count === 2 && blocks === 1) return 100;   // 眠三
                 if (count === 1 && blocks === 0) return 10;    // 活二
 
@@ -890,6 +1097,8 @@
             checkWin(row, col) {
                 const directions = [ [0, 1], [1, 0], [1, 1], [1, -1] ];
                 const player = this.board[row][col];
+                
+                if (player === 0) return false; // [健壮性] 防止检查空点
 
                 for (let [dr, dc] of directions) {
                     let count = 1;
@@ -980,12 +1189,24 @@
                 if (this.moveHistory.length === 0) {
                     return false;
                 }
-                const steps = this.gameMode === 'ai' ? 2 : 1;
-                for (let i = 0; i < steps && this.moveHistory.length > 0; i++) {
+                
+                // [地狱难度.14] 悔棋时必须正确更新哈希
+                const steps = (this.gameMode === 'ai' && this.difficulty !== 'hell') ? 2 : 1;
+                // (地狱难度AI太强，不允许一次悔两步)
+                // (2025-10-23: 不，还是悔两步吧，不然玩家没法玩)
+                const realSteps = this.gameMode === 'ai' ? 2 : 1;
+
+                for (let i = 0; i < realSteps && this.moveHistory.length > 0; i++) {
                     const lastMove = this.moveHistory.pop();
+                    
+                    // 撤销哈希
+                    this.currentHash ^= this.zobristTable[lastMove.row][lastMove.col][lastMove.player - 1];
+                    // 撤销棋盘
                     this.board[lastMove.row][lastMove.col] = 0;
+                    
                     this.currentPlayer = lastMove.player;
                 }
+                
                 this.gameOver = false;
                 this.winner = null;
                 document.getElementById('winnerMessage').className = 'winner-message';
@@ -1012,6 +1233,11 @@
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
+                
+                // [地狱难度.15] 重置哈希和置换表
+                this.currentHash = 0;
+                this.transpositionTable.clear();
+                
                 this.stopTimer();
                 this.elapsedTime = 0;
                 this.updateTimerDisplay();
@@ -1025,8 +1251,8 @@
             startNewGame(aiGoesFirst = false) {
                 this._internalReset();
                 
+                // 噩梦 / 地狱 难度: AI(2) 先手
                 if (aiGoesFirst && this.gameMode === 'ai') {
-                    // 噩梦难度: AI(2) 先手
                     this.currentPlayer = 2; // AI 先手
                     this.updateCurrentPlayer(); // 更新UI
                     this.aiMove(); // AI 下第一步
@@ -1074,20 +1300,16 @@
         }
 
         // ===============================================
-        // [BUG FIX] 启动逻辑修正
+        // 启动逻辑
         // ===============================================
-
-        // 1. 全局声明游戏实例
         let game; 
 
-        // 2. 全局声明按钮调用的函数
         function setGameMode(mode) { 
             game.gameMode = mode;
             
             document.querySelectorAll('.mode-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            // 修正：直接通过查询找到按钮
             document.querySelector(`.mode-btn[onclick="setGameMode('${mode}')"]`).classList.add('active'); 
 
             if (mode === 'ai') {
@@ -1096,7 +1318,8 @@
                 document.getElementById('difficultySelector').style.display = 'none';
             }
             
-            game.startNewGame(mode === 'ai' && game.difficulty === 'nightmare');
+            const aiGoesFirst = (game.difficulty === 'nightmare' || game.difficulty === 'hell');
+            game.startNewGame(mode === 'ai' && aiGoesFirst);
             game.loadBestTime();
         }
 
@@ -1111,13 +1334,16 @@
             const instructions = document.querySelector('.instructions ul');
             const aiRule = instructions.children[3]; 
             
-            if (difficulty === 'nightmare') {
-                aiRule.innerHTML = '😱 <b>噩梦模式</b>: AI执白棋 (2) 先行，你执黑棋 (1)';
+            const aiGoesFirst = (difficulty === 'nightmare' || difficulty === 'hell');
+            
+            if (aiGoesFirst) {
+                const diffName = (difficulty === 'nightmare') ? '😱 噩梦' : '🔥 地狱';
+                aiRule.innerHTML = `<b>${diffName}模式</b>: AI执白棋 (2) 先行，你执黑棋 (1)`;
             } else {
                 aiRule.innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
             }
 
-            game.startNewGame(difficulty === 'nightmare');
+            game.startNewGame(aiGoesFirst);
             game.loadBestTime();
         }
 
@@ -1127,7 +1353,8 @@
 
         function restartGame() {
             if (confirm('确定要重新开始游戏吗？')) {
-                game.startNewGame(game.difficulty === 'nightmare');
+                const aiGoesFirst = (game.difficulty === 'nightmare' || game.difficulty === 'hell');
+                game.startNewGame(aiGoesFirst);
             }
         }
 
@@ -1164,23 +1391,19 @@
                    }
                 });
                 
-                game.startNewGame(oldDifficulty === 'nightmare');
+                const aiGoesFirst = (oldDifficulty === 'nightmare' || oldDifficulty === 'hell');
+                game.startNewGame(aiGoesFirst);
             }
         }
 
-
-        // 3. [!!关键!!] 等待HTML加载完毕后，才初始化游戏
         document.addEventListener('DOMContentLoaded', () => {
-            // 创建游戏实例
+            // 创建游戏实例 (默认 'hard')
             game = new GomokuGame(15, 'ai', 'hard');
             
-            // 初始化
             document.getElementById('undoBtn').disabled = true;
             
-            // 确保 "困难" 按钮在加载时是激活的
             document.querySelector('.diff-btn[onclick*="\'hard\'"]').classList.add('active');
             
-            // 确保初始规则文本正确
             const instructions = document.querySelector('.instructions ul');
             instructions.children[3].innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
         });
