@@ -27,6 +27,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 30px;
             max-width: 850px;
+            width: 100%; /* [手机适配.1] 确保容器在小屏下占满 */
         }
 
         h1 {
@@ -77,6 +78,7 @@
             justify-content: center;
             gap: 8px;
             margin-bottom: 20px;
+            flex-wrap: wrap; /* [手机适配.2] 难度按钮换行 */
         }
 
         .diff-btn {
@@ -182,6 +184,10 @@
             border: 3px solid #8b6914;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
             cursor: pointer;
+            
+            /* [手机适配.3] 关键：让canvas响应式缩放 */
+            max-width: 100%;
+            height: auto; 
         }
 
         .winner-message {
@@ -293,6 +299,15 @@
             .mode-selector {
                 flex-direction: column;
             }
+            
+            /* [手机适配.4] 调整计时器布局 */
+            .timer-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .timer-value {
+                font-size: 1.8em;
+            }
         }
     </style>
 </head>
@@ -359,7 +374,13 @@
         class GomokuGame {
             constructor(boardSize = 15, gameMode = 'pvp', difficulty = 'medium') {
                 this.boardSize = boardSize;
-                this.cellSize = Math.min(500 / boardSize, 40);
+                
+                // [手机适配.5] 修正 cellSize 计算逻辑
+                // 确保棋盘分辨率最大为 500px，同时单元格最大为 40px
+                // (boardSize + 1) 是因为棋盘边缘需要留白
+                const maxCanvasWidth = 500;
+                this.cellSize = Math.floor(Math.min(maxCanvasWidth / (this.boardSize + 1), 40));
+
                 this.board = Array(boardSize).fill(null).map(() => Array(boardSize).fill(0));
                 this.currentPlayer = 1; // 1 = 黑棋/玩家, 2 = 白棋/AI
                 this.gameOver = false;
@@ -383,6 +404,7 @@
             }
 
             initCanvas() {
+                // [手机适配.6] 棋盘分辨率 (width/height) 由 cellSize 决定
                 const size = this.cellSize * (this.boardSize + 1);
                 this.canvas.width = size;
                 this.canvas.height = size;
@@ -511,12 +533,19 @@
                     if (this.gameOver) return;
                     if (this.gameMode === 'ai' && this.currentPlayer === 2) return; // AI回合不允许玩家下
 
+                    // [手机适配.7] 关键：处理缩放后的点击坐标
                     const rect = this.canvas.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
+                    
+                    // 计算缩放比例
+                    const scaleX = this.canvas.width / rect.width;
+                    const scaleY = this.canvas.height / rect.height;
 
-                    const col = Math.round(x / this.cellSize) - 1;
-                    const row = Math.round(y / this.cellSize) - 1;
+                    // 将屏幕坐标 转换回 canvas 内部坐标
+                    const canvasX = (e.clientX - rect.left) * scaleX;
+                    const canvasY = (e.clientY - rect.top) * scaleY;
+                    
+                    const col = Math.round(canvasX / this.cellSize) - 1;
+                    const row = Math.round(canvasY / this.cellSize) - 1;
 
                     if (this.isValidMove(row, col)) {
                         this.makeMove(row, col);
@@ -698,54 +727,86 @@
             // [修改 噩梦AI.2] 新增：开局库 (定式)
             getOpeningMove() {
                 // 开局定式仅在 15x15 棋盘，且是 AI 的第二步时触发 (总步数 = 2)
-                if (this.boardSize !== 15 || this.moveHistory.length !== 2) {
-                    return null;
+                // 噩梦AI先手 (AI=2)，玩家(1)后手。总步数=1时，玩家走了。
+                if (this.boardSize !== 15 || this.moveHistory.length !== 1) {
+                     return null;
                 }
 
                 const centerMove = this.moveHistory[0]; // AI的第一步 (天元)
                 const userMove = this.moveHistory[1];   // 你的第一步
-
-                const center = Math.floor(this.boardSize / 2);
-                if (centerMove.row !== center || centerMove.col !== center) {
-                    return null; // AI第一步没走天元，定式失效
+                
+                // [BUG FIX] 噩梦模式AI先手，历史记录应该是1
+                // 此时 userMove 是 undefined。
+                // 我们需要等玩家走了 (moveHistory.length === 2)
+                
+                // 玩家(1)黑，AI(2)白。
+                // 噩梦模式：AI(2)先走。
+                if (this.boardSize !== 15 || this.moveHistory.length !== 1) {
+                    // moveHistory[0] 是 AI 的第一步 (天元)
+                    // AI 需要等待玩家走 (moveHistory.length === 1)
+                    return null;
                 }
+                
+                const centerMove = this.moveHistory[0]; // AI (2) 的第一步 (天元)
+                
+                // 玩家还没走
+                // 啊，定式是 *应对* 玩家的走法。
+                // 玩家(1)先手 (非噩梦) -> AI(2)应对 (length=1)
+                // AI(2)先手 (噩梦) -> 玩家(1)应对 -> AI(2)再应对 (length=2)
+                
+                if (this.difficulty === 'nightmare') {
+                    // AI(2) 先手 (天元) -> Player(1) 走 (r, c)
+                    // 此时 history.length = 2
+                    if (this.boardSize !== 15 || this.moveHistory.length !== 2) {
+                        return null;
+                    }
+                    
+                    const centerMove = this.moveHistory[0]; // AI (2)
+                    const userMove = this.moveHistory[1];   // Player (1)
+                    
+                    const center = Math.floor(this.boardSize / 2);
+                    if (centerMove.row !== center || centerMove.col !== center) {
+                        return null; // AI第一步没走天元，定式失效
+                    }
 
-                const dr = userMove.row - centerMove.row; // 相对行
-                const dc = userMove.col - centerMove.col; // 相对列
+                    const dr = userMove.row - centerMove.row; // 相对行
+                    const dc = userMove.col - centerMove.col; // 相对列
 
-                let aiMove = null;
+                    let aiMove = null;
 
-                // 规则1: 你走在了 "斜" 侧 (如 (6,6), (6,8), (8,6), (8,8))
-                // AI 执行 "水月 (Suigetsu)" 定式，走 "直" 侧
-                if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
-                    // 例如: 你走 (6,6) [dr=-1, dc=-1], AI 走 (6,7) [dr=-1, dc=0]
-                    aiMove = { row: centerMove.row + dr, col: centerMove.col };
+                    // 规则1: 你走在了 "斜" 侧 (如 (6,6), (6,8), (8,6), (8,8))
+                    // AI 执行 "水月 (Suigetsu)" 定式，走 "直" 侧
+                    if (Math.abs(dr) === 1 && Math.abs(dc) === 1) {
+                        // 例如: 你走 (6,6) [dr=-1, dc=-1], AI 走 (6,7) [dr=-1, dc=0]
+                        aiMove = { row: centerMove.row + dr, col: centerMove.col };
+                    }
+                    // 规则2: 你走在了 "直" 侧 (如 (6,7), (7,6), (7,8), (8,7))
+                    // AI 执行 "花月 (Kagetsu)" 定式，走 "斜" 侧
+                    else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) {
+                        aiMove = { row: centerMove.row + dc, col: centerMove.col + dr };
+                    }
+
+                    if (aiMove && this.isValidMove(aiMove.row, aiMove.col)) {
+                        return aiMove;
+                    }
                 }
-                // 规则2: 你走在了 "直" 侧 (如 (6,7), (7,6), (7,8), (8,7))
-                // AI 执行 "花月 (Kagetsu)" 定式，走 "斜" 侧
-                else if ((Math.abs(dr) === 1 && dc === 0) || (dr === 0 && Math.abs(dc) === 1)) {
-                    // 例如: 你走 (7,8) [dr=0, dc=1], AI 走 (8,7) [dr=1, dc=0]
-                    // (row + dc, col + dr) 是一个巧妙的计算方法
-                    aiMove = { row: centerMove.row + dc, col: centerMove.col + dr };
-                }
+                
+                // 非噩梦模式的定式 (AI后手)
+                // (此处省略，因为噩梦AI是重点)
 
-                // 检查定式走法是否有效 (防止意外)
-                if (aiMove && this.isValidMove(aiMove.row, aiMove.col)) {
-                    return aiMove;
-                }
-
-                // 如果你走得太远 (dr/dc > 1)，则定式失效，返回null
                 return null;
             }
 
 
             // [修改 噩梦AI.3] 原来的 getNightmareMove() 重命名为 runMinimax()
+            // [!!! BUG FIX !!!] 修正了此函数的评估逻辑
             runMinimax() {
                 let bestScore = -Infinity;
                 let bestMove = null;
                 const validMoves = this.getValidMoves();
                 
-                if (validMoves.length === 1) return validMoves[0]; // 处理AI第一步 (走天元)
+                // (AI第一步走天元)
+                if (validMoves.length === 1) return validMoves[0]; 
 
                 for (let move1 of validMoves) {
                     // 1. AI 尝试走一步
@@ -754,6 +815,11 @@
                         this.board[move1.row][move1.col] = 0;
                         return move1; // 立即获胜
                     }
+                    
+                    // [BUG FIX.1] AI走完 (move1) 后，立刻计算AI的得分
+                    // 这个分数是基于 (Board + move1) 的状态
+                    // (旧代码把这行放在了 move2 循环内部，导致状态污染)
+                    const aiScore = this.evaluatePositionAdvanced(move1.row, move1.col);
                     
                     let minOpponentScore = +Infinity;
                     const opponentValidMoves = this.getValidMoves();
@@ -767,10 +833,12 @@
                             // 玩家的这步棋能赢，这对AI是极差的
                             currentScore = -1e9;
                         } else {
-                            // 评估局势：AI得分 - 玩家得分 (玩家得分权重更高)
-                            const aiScore = this.evaluatePositionAdvanced(move1.row, move1.col);
+                            // [BUG FIX.2] 在 (Board + move1 + move2) 的状态下，计算玩家的得分
                             const playerScore = this.evaluatePositionAdvanced(move2.row, move2.col);
-                            currentScore = aiScore - playerScore * 1.5;
+                            
+                            // [BUG FIX.3] 使用修正后的分数进行评估
+                            // 评估：AI走(move1)的分数 - 玩家应对(move2)的分数
+                            currentScore = aiScore - playerScore * 1.5; 
                         }
 
                         minOpponentScore = Math.min(minOpponentScore, currentScore);
@@ -1048,42 +1116,11 @@
                 this._internalReset();
                 
                 if (aiGoesFirst && this.gameMode === 'ai') {
-                    // 设置为AI（玩家2）回合
-                    // [修改 噩梦AI.4] AI先手时，currentPlayer 应该是 1 (黑棋)
-                    // 但是AI逻辑是 player 2。这里需要调整。
-                    // 噩梦AI是黑棋(1)，玩家是白棋(2)。
-                    // 让我们调整一下游戏规则：AI对战时，玩家恒为1(黑)，AI恒为2(白)。
-                    // "噩梦" 难度下，AI(2) 先手。
-                    
-                    // 检查原始代码：
-                    // restartGame() -> startNewGame(game.difficulty === 'nightmare')
-                    // 规则说："AI对战模式下，你执黑棋先行"
-                    // "噩梦" 按钮的 emoji 😱
-                    // 你的要求是 "噩梦难度的AI是先手的"
-                    
-                    // 好的，我们来修改规则：
-                    // 默认：玩家(1)黑棋 vs AI(2)白棋
-                    // 噩梦难度：AI(1)黑棋 vs 玩家(2)白棋
-                    
-                    // 让我们回到 "startNewGame"
-                    // this._internalReset() 会把 currentPlayer 设为 1
-                    
-                    if (aiGoesFirst && this.gameMode === 'ai') {
-                        // AI 先手 (AI 执黑棋)
-                        this.currentPlayer = 1; // AI(1) 是当前玩家
-                        // AI(1) vs Player(2)
-                        // 我们需要让 AI(1) 下棋
-                        
-                        // 这会搞乱所有 AI 逻辑，因为 AI 逻辑(2) 和 Player 逻辑(1) 是写死的。
-                        // 让我们坚持：Player=1, AI=2。
-                        
-                        // 新逻辑：
-                        // "噩梦" 难度下，AI(2) 先手。
-                        this.currentPlayer = 2; // AI 先手
-                        this.updateCurrentPlayer(); // 更新UI
-                        this.aiMove(); // AI 下第一步
-                    }
-                    
+                    // [修改 噩梦AI.4] 坚持：Player=1(黑), AI=2(白)。
+                    // 噩梦难度下，AI(2) 先手。
+                    this.currentPlayer = 2; // AI 先手
+                    this.updateCurrentPlayer(); // 更新UI
+                    this.aiMove(); // AI 下第一步
                 }
             }
 
@@ -1140,7 +1177,8 @@
                 btn.classList.remove('active');
             });
             // 找到点击的按钮并激活
-            event.target.classList.add('active'); 
+            // 修正：从全局 event 切换到查询
+            document.querySelector(`.mode-btn[onclick="setGameMode('${mode}')"]`).classList.add('active'); 
 
             if (mode === 'ai') {
                 document.getElementById('difficultySelector').style.display = 'flex';
@@ -1164,8 +1202,10 @@
             // [修改 噩梦AI.6] 调整规则文本
             const instructions = document.querySelector('.instructions ul');
             const aiRule = instructions.children[3]; // 'AI对战模式下，你执黑棋先行'
+            
             if (difficulty === 'nightmare') {
-                aiRule.innerHTML = '😱 <b>噩梦模式</b>: AI执黑棋 (1) 先行，你执白棋 (2)';
+                // [BUG FIX.4] 修正噩梦模式的规则文本
+                aiRule.innerHTML = '😱 <b>噩梦模式</b>: AI执白棋 (2) 先行，你执黑棋 (1)';
             } else {
                 aiRule.innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
             }
@@ -1231,12 +1271,15 @@
         // [修改 噩梦AI.7] 页面加载时，手动设置一次 "困难" 按钮的 active 状态和规则文本
         document.querySelector('.diff-btn[onclick*="\'hard\'"]').classList.add('active');
         const instructions = document.querySelector('.instructions ul');
+        // [BUG FIX.5] 确保初始规则文本正确
         instructions.children[3].innerHTML = 'AI对战模式下，你执黑棋 (1) 先行，AI执白棋 (2)';
         
         // [修改 噩梦AI.8] 修正 setGameMode 的调用方式
+        // (原代码在 event 传递上有问题，修改为显式传递参数)
         document.querySelectorAll('.mode-btn').forEach(btn => {
             const mode = btn.onclick.toString().match(/'(.*?)'/)[1];
-            btn.onclick = () => setGameMode(mode);
+            // 重新绑定，确保 event 对象是 setDifficulty 函数的，而不是这里的
+            btn.onclick = (event) => setGameMode(mode); 
         });
 
     </script>
