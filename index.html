@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GOMOKU // PROTOCAL: GEMINI-3</title>
+    <title>gemini-3-pro-preview</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&display=swap"
         rel="stylesheet">
@@ -298,7 +298,7 @@
     <div class="cyber-container">
         <div class="game-area">
             <h1>GOMOKU</h1>
-            <div class="subtitle">PROTOCOL: GEMINI-3 // GOD MODE</div>
+            <div class="subtitle">gemini-3-pro-preview // GOD MODE</div>
             <div class="canvas-wrapper">
                 <canvas id="gameBoard"></canvas>
             </div>
@@ -325,7 +325,7 @@
                 </div>
             </div>
 
-            <button class="btn" onclick="game.restart()">Initialize Sequence</button>
+            <button class="btn" onclick="game.restart()">INITIALIZE SEQUENCE</button>
 
             <div class="panel log-panel" id="gameLog">
                 <!-- Logs go here -->
@@ -872,10 +872,19 @@
             }
 
             setupWorker() {
-                const workerScript = document.getElementById('ai-worker-script').textContent;
-                const blob = new Blob([workerScript], { type: 'application/javascript' });
-                this.aiWorker = new Worker(URL.createObjectURL(blob));
-                this.aiWorker.onmessage = (e) => this.receiveAiMove(e.data);
+                try {
+                    const workerScript = document.getElementById('ai-worker-script').textContent;
+                    const blob = new Blob([workerScript], { type: 'application/javascript' });
+                    this.aiWorker = new Worker(URL.createObjectURL(blob));
+                    this.aiWorker.onmessage = (e) => this.receiveAiMove(e.data);
+                    this.aiWorker.onerror = (e) => {
+                        console.error("Worker Error:", e);
+                        this.log("AI CORE FAILURE: " + e.message, "warn");
+                    };
+                } catch (e) {
+                    console.error("Worker Setup Failed:", e);
+                    this.log("AI INIT FAILED: " + e.message, "warn");
+                }
             }
 
             setupEvents() {
@@ -1146,9 +1155,7 @@
             }
 
             restart() {
-                if (confirm("REBOOT SYSTEM?")) {
-                    this.startNewGame();
-                }
+                this.startNewGame();
             }
 
             startNewGame() {
