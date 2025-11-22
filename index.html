@@ -437,7 +437,7 @@
                 if (centerMove.row !== center || centerMove.col !== center) return null; 
 
                 const dr = userMove.row - centerMove.row; 
-                const dc = userMove.col - centerMove.col;IP: 
+                const dc = userMove.col - centerMove.col;
 
                 let aiMove = null;
                 // 规则1: 玩家走斜角 -> AI走直线相邻
@@ -523,7 +523,7 @@
             const moves = Array.from(moveSet).map(s => {
                 const [row, col] = s.split(',').map(Number);
                 return { row, col };
-  S:       });
+            });
 
             if (withOrdering) {
                 const scoredMoves = moves.map(move => {
@@ -567,8 +567,8 @@
 
         // 评估在 (r, c) 落子后，在 [dr, dc] 方向上的连珠情况
         function evaluateLine(row, col, dr, dc, player) {
-            let count = 0; 
-    _internalReset();           let blocks = 0; 
+            let count = 0;
+            let blocks = 0;
             
             // 扫描正方向
             for (let i = 1; i <= 4; i++) {
@@ -586,7 +586,7 @@
                 const r = row - dr * i;
                 const c = col - dc * i;
                  if (r < 0 || r >= boardSize || c < 0 || c >= boardSize) {
-IP:                   blocks++; break; }
+                  blocks++; break; }
                 if (board[r][c] === player) { count++; } 
                 else if (board[r][c] === 0) { break; } 
                 else { blocks++; break; }
@@ -613,7 +613,7 @@ IP:                   blocks++; break; }
             for (let [dr, dc] of directions) {
                 let count = 1;
                 let r = row + dr, c = col + dc;
-IP:               while (r >= 0 && r < boardSize && c >= 0 && c < boardSize &&
+              while (r >= 0 && r < boardSize && c >= 0 && c < boardSize &&
                        board[r][c] === player) {
                     count++; r += dr; c += dc;
                 }
@@ -648,7 +648,7 @@ IP:               while (r >= 0 && r < boardSize && c >= 0 && c < boardSi
                 if (r < 0 || r >= boardSize || c < 0 || c >= boardSize) {
                     blocks++; break;
                 }
-  S:             if (board[r][c] === player) {
+                  if (board[r][c] === player) {
                     count++;
                 } else if (board[r][c] === 0) {
                     spaces++;
@@ -727,16 +727,16 @@ IP:               while (r >= 0 && r < boardSize && c >= 0 && c < boardSi
                             const nr = r + dr;
                             const nc = c + dc;
 
-IP:                           if (nr >= 0 && nr < boardSize && nc >= 0 && nc < boardSize &&
+                          if (nr >= 0 && nr < boardSize && nc >= 0 && nc < boardSize &&
                                 board[nr][nc] === 0) {
                                 const key = `${nr},${nc}`;
                                 if (!moveSet.has(key) && hasPattern(nr, nc, player, threatLevel)) {
                                     threats.push({ row: nr, col: nc });
-                            S:       moveSet.add(key);
+                                      moveSet.add(key);
                                 }
                             }
                         }
-              S:       }
+                        }
                 }
             }
 
@@ -754,7 +754,7 @@ IP:                           if (nr >= 0 && nr < boardSize && nc >
 
             for (let dr = -radius; dr <= radius; dr++) {
                 for (let dc = -radius; dc <= radius; dc++) {
-S:                   const r = threatMove.row + dr;
+                  const r = threatMove.row + dr;
                     const c = threatMove.col + dc;
 
                     if (r >= 0 && r < boardSize && c >= 0 && c < boardSize &&
@@ -787,7 +787,7 @@ S:                   const r = threatMove.row + dr;
             }
 
             // 如果没有找到防守点，返回威胁点本身
-is:           if (defMoves.length === 0 && board[threatMove.row][threatMove.col] === 0) {
+          if (defMoves.length === 0 && board[threatMove.row][threatMove.col] === 0) {
                 defMoves.push(threatMove);
             }
 
@@ -827,7 +827,7 @@ is:           if (defMoves.length === 0 && board[threatMove.row][threatMove
                 let allDefLeadToVCF = true;
 
                 if (defMoves.length === 0) {
-IP:                 // 无法防守，说明已经必胜
+                // 无法防守，说明已经必胜
                     _simulateUndo(move.row, move.col, player);
                     return { move: move, depth: depth };
                 }
@@ -845,7 +845,7 @@ IP:                 // 无法防守，说明已经必胜
                     }
                 }
 
-A:             _simulateUndo(move.row, move.col, player);
+            _simulateUndo(move.row, move.col, player);
 
                 if (allDefLeadToVCF && defMoves.length > 0) {
                     return { move: move, depth: depth };
@@ -853,7 +853,7 @@ A:             _simulateUndo(move.row, move.col, player);
             }
 
             return null;
-A:     }
+    }
 
         // VCT 求解器：搜索活三+活四的威胁序列（简化版）
         function searchVCT(depth, player, startTime) {
@@ -872,7 +872,7 @@ A:     }
 
             if (threatMoves.length === 0) return null;
 
-S:         // 优先选择更强的威胁（活四 > 冲四 > 活三）
+        // 优先选择更强的威胁（活四 > 冲四 > 活三）
             threatMoves.sort((a, b) => {
                 const scoreA = evaluatePositionAdvanced(a.row, a.col);
                 const scoreB = evaluatePositionAdvanced(b.row, b.col);
@@ -887,7 +887,7 @@ S:         // 优先选择更强的威胁（活四 > 冲四 > 活三）
 
                 // 如果直接成五
                 if (checkWin(move.row, move.col)) {
-is:                 _simulateUndo(move.row, move.col, player);
+                _simulateUndo(move.row, move.col, player);
                     return { move: move, depth: depth };
                 }
 
@@ -902,7 +902,7 @@ is:                 _simulateUndo(move.row, move.col, player);
                 const defMoves = generateDefenseMoves(move, opponent);
 
                 if (defMoves.length === 0) {
-                S:   _simulateUndo(move.row, move.col, player);
+                      _simulateUndo(move.row, move.col, player);
                     return { move: move, depth: depth };
                 }
 
@@ -911,7 +911,7 @@ is:                 _simulateUndo(move.row, move.col, player);
                 for (const def of defMoves) {
                     _simulateMove(def.row, def.col, opponent);
 
-is:                 // 递归检查VCT或VCF
+                // 递归检查VCT或VCF
                     const nextThreat = searchVCF(depth - 1, player, startTime) ||
                               s:       searchVCT(depth - 1, player, startTime);
 
@@ -919,9 +919,9 @@ is:                 // 递归检查VCT或VCF
 
                     if (!nextThreat) {
                         allDefLeadToVCT = false;
-s:                       break;
+                      break;
                     }
-      S:         }
+                  }
 
                 _simulateUndo(move.row, move.col, player);
 
@@ -978,7 +978,7 @@ s:                       break;
                     this.aiWorker.onmessage = (e) => {
                         this.receiveAiMove(e.data);
                     };
-            S:   } catch (error) {
+                  } catch (error) {
                     console.error("无法创建 AI Worker: ", error);
                     alert("加载AI线程失败！请检查浏览器兼容性或刷新页面。");
                 }
@@ -1081,7 +1081,7 @@ s:                       break;
                 for (let i = 0; i < boardSize; i++) {
                     for (let j = 0; j < boardSize; j++) {
                         if (this.board[i][j] !== 0) {
-              S:             this.drawPiece(i, j, this.board[i][j]);
+                              this.drawPiece(i, j, this.board[i][j]);
                         }
                     }
                 }
@@ -1124,7 +1124,7 @@ s:                       break;
             }
 
             highlightLastMove(row, col) {
-is:             const ctx = this.ctx;
+            const ctx = this.ctx;
                 const x = this.cellSize * (col + 1);
                 const y = this.cellSize * (row + 1);
                 const radius = this.cellSize * 0.15; 
@@ -1142,7 +1142,7 @@ is:             const ctx = this.ctx;
                     if (this.gameOver) return;
                     if (this.currentPlayer === 2) return; // AI 回合不能点
                     const rect = this.canvas.getBoundingClientRect();
-        S:           const scaleX = this.canvas.width / rect.width;
+                      const scaleX = this.canvas.width / rect.width;
                     const scaleY = this.canvas.height / rect.height;
                     const canvasX = (e.clientX - rect.left) * scaleX;
                     const canvasY = (e.clientY - rect.top) * scaleY;
@@ -1153,7 +1153,7 @@ is:             const ctx = this.ctx;
                     }
                 };
                 this.canvas.addEventListener('click', this.clickHandler);
-s:       }
+      }
 
             isValidMove(row, col) {
                 if (row < 0 || row >= this.boardSize || col < 0 || col >= this.boardSize) {
@@ -1197,7 +1197,7 @@ s:       }
                     if (this.currentPlayer === 2) {
                          // AI 下棋前先更新 UI，显示轮到 AI
                          this.updateCurrentPlayer();
-          S:              this.aiMove();
+                           this.aiMove();
                     } 
                     // 轮到玩家
                     else {
@@ -1205,7 +1205,7 @@ s:       }
                         if (this.moveHistory.length >= 2) {
                             this.startPlayerTimer();
                         } else {
-          S:               // 玩家第一步后，不启动计时器，但需要更新 UI
+                            // 玩家第一步后，不启动计时器，但需要更新 UI
                             this.updateCurrentPlayer(); 
                         }
                     }
@@ -1260,7 +1260,7 @@ s:       }
                     case 'VCF_Block': typeStr = '🧱 [VCF 防御]'; break;
                     case 'VCT_Attack': typeStr = '⚡ [VCT 威胁]'; break;
                     case 'VCT_Block': typeStr = '✋ [VCT 防御]'; break;
-s:                   case 'Opening': typeStr = '📚 [开局库]'; break;
+                  case 'Opening': typeStr = '📚 [开局库]'; break;
                     default: typeStr = `(D:${depth})`;
                 }
 
@@ -1280,7 +1280,7 @@ s:                   case 'Opening': typeStr = '📚 [开局库]'; brea
                     stepTaunts = [
                         `${target}, 这是必杀序列！你已经输了！`,
                         `VCF找到了，${target}，你无路可逃。`,
-              S:       `完美的四连威胁，${target}，认输吧！`,
+                        `完美的四连威胁，${target}，认输吧！`,
                         `${target}, 我已经算到了你的死期。`
                     ];
                 } else if (type === 'BLOCK_WIN_IN_1' || type === 'VCF_Block' || type === 'VCT_Block') {
@@ -1298,20 +1298,20 @@ s:                   case 'Opening': typeStr = '📚 [开局库]'; brea
                     ];
                 } else {
                     stepTaunts = [ // 硕神专属嘲讽（地狱模式）
-is:                   `神之一手。到你了, ${target}。`,
+                  `神之一手。到你了, ${target}。`,
                         `我算了 ${depth} 层，你还有胜算吗, ${target}？`,
                         `${target}, 你已经输了, 只是还没意识到。`,
-                    S:   `完美的防守，无懈可击的进攻。颤抖吧, ${target}！`,
+                          `完美的防守，无懈可击的进攻。颤抖吧, ${target}！`,
                         `我看到了 ${depth} 层之后的世界, ${target}, 你呢？`,
                         `放弃吧, ${target}, 胜负已定。`,
                         `弱小的人类${target}, 你的策略漏洞百出。`,
-s:                     `地狱难度不是开玩笑的, ${target}！`,
+                    `地狱难度不是开玩笑的, ${target}！`,
                         `是不是很绝望啊, ${target}？`
                     ];
                 }
                 const stepTaunt = stepTaunts[Math.floor(Math.random() * stepTaunts.length)];
 
-s:             // 显示信息 + 嘲讽
+            // 显示信息 + 嘲讽
                 aiThinkingEl.innerHTML = `✅ AI落子 ${typeStr} ${durationText} <span class="step-taunt">${stepTaunt}</span>`; 
                 
                 if (move) {
@@ -1325,7 +1325,7 @@ s:             // 显示信息 + 嘲讽
                     } else {
                          console.log("Ignoring AI move received after turn changed or game ended.");
                     }
-        S:     } else {
+                } else {
                     aiThinkingEl.innerHTML = '🤔 游戏结束? (AI无棋可走)';
                 }
             }
@@ -1335,7 +1335,7 @@ s:             // 显示信息 + 嘲讽
                  const emptyPositions = [];
                 for (let i = 0; i < this.boardSize; i++) {
                     for (let j = 0; j < this.boardSize; j++) {
-      S:                 if (this.board[i][j] === 0) {
+                          if (this.board[i][j] === 0) {
                             emptyPositions.push({ row: i, col: j });
                         }
                     }
@@ -1347,7 +1347,7 @@ s:             // 显示信息 + 嘲讽
             }
 
             // 主线程仍然需要 checkWin (用于玩家)
-s:       checkWin(row, col) {
+      checkWin(row, col) {
                 const directions = [ [0, 1], [1, 0], [1, 1], [1, -1] ];
                 const player = this.board[row][col];
                 if (player === 0) return false;
@@ -1386,17 +1386,17 @@ Example:               return true;
                 playerText = this.currentPlayer === 1
                     ? '<span class="player-black">● 你（黑棋）</span>'
                     : '<span class="player-white">○ AI（白棋）</span>';
-              S:  
+                   
                 // 更新 UI (附加计时器)
                 const playerTimerSpan = document.getElementById('playerTimeLeft');
                  // 只有当计时器ID存在时(表示计时器正在运行)才显示时间
                 if (this.playerTimerId !== null && this.currentPlayer === 1 && !this.gameOver) {
                     playerTimerSpan.textContent = `(${this.playerTimeLeft}s)`;
                 } else {
-                    playerTimerSpan.textContent = '';s: 
+                    playerTimerSpan.textContent = '';
                 }
                 document.getElementById('currentPlayer').innerHTML = '当前玩家：' + playerText + playerTimerSpan.outerHTML;
-          S: }
+              }
 
             showWinner() {
                  // 只有 AI 模式
@@ -1407,12 +1407,12 @@ Example:               return true;
                 let messageText = `🎉 ${playerName} 获胜！`;
                 
                 // [嘲讽] AI 获胜时添加嘲讽
-IP:             if (this.winner === 2) {
+            if (this.winner === 2) {
                     const targets = ["小强强", "小辉辉"];
                     const target = targets[Math.floor(Math.random() * targets.length)];
                     let taunts = [ // 硕神胜利嘲讽
                         `8层搜索，${target}你拿什么赢？`, `凡人${target}，你尽力了。`, `我的每一步，都是最优解。`,
-S:                       `${target}, 你甚至没能逼我走出开局库。`, `结束了, ${target}, 游戏才刚刚开始。`,
+                      `${target}, 你甚至没能逼我走出开局库。`, `结束了, ${target}, 游戏才刚刚开始。`,
                         `不堪一击，${target}。`, `回去再练练吧，${target}！`
                     ];
                     const taunt = taunts[Math.floor(Math.random() * taunts.length)];
@@ -1426,7 +1426,7 @@ i:             if (this.winner === 1) {
                     const currentBest = localStorage.getItem(bestTimeKey);
 
                     if (!currentBest || this.elapsedTime < parseInt(currentBest)) {
-          S:             localStorage.setItem(bestTimeKey, this.elapsedTime);
+                          localStorage.setItem(bestTimeKey, this.elapsedTime);
                         this.loadBestTime();
                         messageText += `<br>🏆 新纪录！你竟然战胜了硕神地狱模式？！传说诞生！`;
                     } else {
@@ -1441,7 +1441,7 @@ i:             if (this.winner === 1) {
 
             showDraw() {
                 const message = document.getElementById('winnerMessage');
-IP:               message.innerHTML = '🤝 平局！棋盘已满';
+              message.innerHTML = '🤝 平局！棋盘已满';
                 message.className = 'winner-message show';
     A:           message.style.color = '#ff9800';
             }
@@ -1453,7 +1453,7 @@ IP:               message.innerHTML = '🤝 平局！棋盘已满';
 
                 this.stopPlayerTimer(); // 先清除旧的
                 this.playerTimeLeft = 5;
-        S:       this.updateCurrentPlayer(); // 更新显示 (5s)
+                  this.updateCurrentPlayer(); // 更新显示 (5s)
                 
                 this.playerTimerId = setInterval(() => {
                     // 再次检查，防止计时器在不该跑的时候跑
@@ -1471,7 +1471,7 @@ IP:               message.innerHTML = '🤝 平局！棋盘已满';
                 }, 1000); // 每秒执行
             }
             
-  S:     // 停止玩家计时器
+          // 停止玩家计时器
             stopPlayerTimer() {
                  if (this.playerTimerId) {
                     clearInterval(this.playerTimerId);
@@ -1479,7 +1479,7 @@ IP:               message.innerHTML = '🤝 平局！棋盘已满';
                 }
                  // 清除计时显示 
                  const playerTimerSpan = document.getElementById('playerTimeLeft');
-is:              if(playerTimerSpan) playerTimerSpan.textContent = '';
+             if(playerTimerSpan) playerTimerSpan.textContent = '';
                  // 确保UI立即更新为不带计时器状态 (如果当前是玩家回合)
                  if (!this.gameOver && this.currentPlayer === 1) {
                      this.updateCurrentPlayer();
@@ -1490,7 +1490,7 @@ i:             }
             forceRandomMove() {
                  this.stopPlayerTimer();
                  if (this.gameOver || this.currentPlayer !== 1) return; // 游戏已结束或不是玩家回合
-is:              
+             
                  console.warn("玩家超时，强制随机落子！");
                  const randomMove = this.getRandomMoveForMainThread();
                  
@@ -1506,7 +1506,7 @@ is:              
                          // 检查游戏是否在延迟期间结束了，并且确认现在是玩家回合
 i:                         if (!this.gameOver && this.currentPlayer === 1) {
                             this.makeMove(randomMove.row, randomMove.col);
-is:                     }
+                    }
                      }, 500);
                  } else {
                     s: aiThinkingEl.innerHTML = `⏰ 时间到！但棋盘已满？`;
@@ -1520,13 +1520,13 @@ is:                     }
                 this.gameOver = false;
                 this.winner = null;
                 this.moveHistory = [];
-s:               this.currentHash = 0;
+              this.currentHash = 0;
                 
                 this.stopTimer(); // 停止游戏总计时
                 this.stopPlayerTimer(); // 停止玩家计时
                 this.elapsedTime = 0;
                 this.updateTimerDisplay();
-message:               document.getElementById('winnerMessage').className = 'winner-message';
+              document.getElementById('winnerMessage').className = 'winner-message';
                 // [UI 优化]
                 document.getElementById('aiThinking').style.visibility = 'hidden';
                 this.drawBoard(); // 画空棋盘
@@ -1549,7 +1549,7 @@ message:               document.getElementById('winnerMessage').className
                     // 只有游戏进行中才计时
                     if (!this.gameOver) {
                       s: this.elapsedTime = Date.now() - this.startTime;
-              S:         this.updateTimerDisplay();
+                          this.updateTimerDisplay();
                     } else {
                         this.stopTimer(); // 游戏结束，停止计时
                     }
@@ -1616,9 +1616,9 @@ d:           
                  '🔥 **硕神地狱模式**: AI执白棋 (2) **立即**在天元落子先行，你执黑棋 (1)',
                  '点击棋盘空白处落子',
                  '先将五个棋子连成一线者获胜（横、竖、斜均可）',
-Route:                '玩家**第一步后**每步思考时间不得超过5秒，超时将随机落子',
+               '玩家**第一步后**每步思考时间不得超过5秒，超时将随机落子',
                  'AI 每步思考时间上限5秒（VCF深度20，VCT深度15，Minimax深度8）',
-IP:                '**无悔棋**'
+               '**无悔棋**'
             ];
              rules.forEach(ruleText => {
                  const li = document.createElement('li');
