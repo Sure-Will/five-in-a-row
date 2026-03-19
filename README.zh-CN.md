@@ -77,11 +77,7 @@ http://localhost:8080
 five-in-a-row/
 ├── index.html
 ├── README.md
-├── README.zh-CN.md
-├── DEPLOY.md
-├── PAGES_GUIDE.md
-├── PR_GUIDE.md
-└── SIMPLE_DEPLOY.md
+└── README.zh-CN.md
 ```
 
 ## 实现说明
@@ -102,15 +98,9 @@ five-in-a-row/
 - Vercel 静态托管
 - 任意基础静态服务器
 
-仓库里已有的部署说明在这里：
-
-- [`DEPLOY.md`](./DEPLOY.md)
-- [`PAGES_GUIDE.md`](./PAGES_GUIDE.md)
-- [`SIMPLE_DEPLOY.md`](./SIMPLE_DEPLOY.md)
-
 ## 继续改这个项目时
 
-如果你后面继续打磨 UI、AI 或交互逻辑，优先从 [`index.html`](./index.html) 入手。协作说明可以看 [`PR_GUIDE.md`](./PR_GUIDE.md)。
+如果你后面继续打磨 UI、AI 或交互逻辑，优先从 [`index.html`](./index.html) 入手。只要页面行为或结构变了，也顺手把这两份 README 一起更新掉。
 
 ## 状态说明
 

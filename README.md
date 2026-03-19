@@ -73,11 +73,7 @@ To verify the phone layout and touch interaction:
 five-in-a-row/
 ├── index.html
 ├── README.md
-├── README.zh-CN.md
-├── DEPLOY.md
-├── PAGES_GUIDE.md
-├── PR_GUIDE.md
-└── SIMPLE_DEPLOY.md
+└── README.zh-CN.md
 ```
 
 ## Implementation Notes
@@ -98,15 +94,9 @@ Because the project is static, you can deploy it to:
 - Vercel static hosting
 - any basic file server
 
-Repository deployment notes are available in:
-
-- [`DEPLOY.md`](./DEPLOY.md)
-- [`PAGES_GUIDE.md`](./PAGES_GUIDE.md)
-- [`SIMPLE_DEPLOY.md`](./SIMPLE_DEPLOY.md)
-
 ## Contributing
 
-If you want to improve the UI, AI, or gameplay behavior, start with [`index.html`](./index.html). Contribution notes are in [`PR_GUIDE.md`](./PR_GUIDE.md).
+If you want to improve the UI, AI, or gameplay behavior, start with [`index.html`](./index.html). If the visible behavior changes, update both README files so the docs keep matching the real project.
 
 ## Status
 
