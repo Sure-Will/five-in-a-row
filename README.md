@@ -1,245 +1,113 @@
-# 🎮 五子棋游戏 - 硕神 AI 挑战
+# five-in-a-row
 
-> 一个部署在 GitHub Pages 的纯静态 HTML 五子棋游戏，搭载 VCF/VCT 威胁搜索算法的超强 AI
+A single-file Gomoku front end with a cyberpunk-style UI, responsive layout, and lightweight AI opponent.
 
-[![GitHub Pages](https://img.shields.io/badge/GitHub-Pages-blue?logo=github)](https://sure-will.github.io/five-in-a-row/)
-[![HTML](https://img.shields.io/badge/HTML-Pure%20Static-orange?logo=html5)](./index.html)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
----
+## Overview
 
-## 🌟 在线体验
+This project is a static browser game built around one main file: [`index.html`](./index.html). It is designed to be easy to run, easy to deploy, and easy to modify.
 
-### 👉 [点击这里开始挑战硕神 AI](https://sure-will.github.io/five-in-a-row/) 👈
+The current version focuses on:
 
-**无需下载，无需安装，直接在浏览器中挑战！**
+- a bold single-page interface
+- click and touch-based play on desktop and mobile
+- a simple AI that opens at the center and answers with threat scanning plus lightweight alpha-beta search
+- local best-time storage with `localStorage`
+- zero build tooling and zero runtime dependencies
 
----
+## Current Gameplay
 
-## ✨ 特色功能
+- The AI plays white and always opens first.
+- The player plays black.
+- Click or tap an empty intersection to place a stone.
+- Five in a row wins horizontally, vertically, or diagonally.
+- The status panel, turn panel, move count, latency, and mission feed update during play.
 
-### 🤖 硕神模式 AI - 业界领先的五子棋算法
+## Features
 
-这不是普通的五子棋 AI。硕神 AI 搭载了专业级算法：
+- Single-file app: all markup, styles, and game logic live in `index.html`
+- Responsive layout: tuned for desktop, tablet, and phone screens
+- Touch support: mobile tap interaction is handled directly on the canvas
+- Live UI state: system status, turn state, move count, timer, and message log
+- Persistent record: best win time is saved in the browser
+- Easy hosting: works well as a static page on GitHub Pages or any static host
 
-- **🔥 VCF 求解器**（Victory by Continuous Four）
-  - 搜索深度：10 层
-  - 能提前 5 个回合看到必杀序列
-  - 识别活四/冲四的连续威胁攻击
+## Run Locally
 
-- **⚡ VCT 求解器**（Victory by Continuous Threat）
-  - 搜索深度：8 层
-  - 识别活三威胁序列
-  - 智能组合多重威胁
+You can open the HTML file directly, but a local server is the safer option for browser testing.
 
-- **🧠 Minimax + Alpha-Beta 剪枝**
-  - 搜索深度：6 层
-  - 迭代加深搜索（IDDFS）
-  - 置换表优化
-  - Zobrist 哈希
+### Option 1: Open the file directly
 
-- **⚙️ Web Worker 多线程**
-  - AI 在后台线程计算，界面不卡顿
-  - 10 秒熔断保护，保证响应速度
+Open [`index.html`](./index.html) in your browser.
 
-### 🎯 游戏特性
-
-- ✨ **精美界面**：渐变色棋子，木纹棋盘，天元星位标识
-- ⏱️ **计时挑战**：实时计时，记录最佳成绩
-- 💬 **AI 嘲讽**：硕神 AI 的专属嘲讽语录（对小强强和小辉辉）
-- 🚫 **无悔棋**：真正的竞技模式，每步都要慎重
-- ⏰ **10秒限时**：玩家每步最多 10 秒，超时自动随机落子
-- 📱 **响应式设计**：支持桌面、平板、手机
-
-### 🏆 挑战记录
-
-- 硕神模式最佳通关时间记录
-- 自动保存在浏览器本地存储
-- 打破记录时显示"新纪录"提示
-
----
-
-## 📖 游戏规则
-
-1. **AI 先手**：硕神 AI 执白棋，瞬间在天元落子
-2. **你执黑棋**：点击棋盘空白处落子
-3. **胜利条件**：先将五个棋子连成一线者获胜（横、竖、斜均可）
-4. **限时对弈**：
-   - 玩家第一步后，每步思考时间不超过 10 秒
-   - 超时将强制随机落子
-   - AI 每步思考上限 10 秒（通常 1-3 秒内完成）
-5. **无悔棋**：落子无悔，请三思而后行
-
----
-
-## 💻 本地运行
-
-如果你想在本地运行或二次开发：
-
-### 方式一：直接下载
+### Option 2: Use a local server
 
 ```bash
-# 下载 index.html 文件
-# 双击打开即可开始游戏
-```
-
-### 方式二：克隆仓库
-
-```bash
-git clone https://github.com/Sure-Will/five-in-a-row.git
 cd five-in-a-row
-# 双击打开 index.html 或使用本地服务器
+python3 -m http.server 8080
 ```
 
-### 方式三：使用本地服务器
+Then visit:
 
-```bash
-# Python 3
-python3 -m http.server 8000
-
-# Node.js
-npx http-server
-
-# 然后访问 http://localhost:8000
+```text
+http://localhost:8080
 ```
 
-**支持所有现代浏览器**：Chrome、Firefox、Safari、Edge
+## Mobile Testing
 
----
+To verify the phone layout and touch interaction:
 
-## 🏗️ 技术架构
+1. Start the local server.
+2. Open the page in your browser.
+3. Use responsive mode in DevTools, or open it on a real phone on the same network.
+4. Check these points:
+   - the page does not overflow horizontally
+   - the board scales to the available width
+   - tapping intersections places stones correctly
+   - buttons and panels remain readable on small screens
 
-### 纯前端技术栈
+## Project Structure
 
-- **HTML5 Canvas**：绘制棋盘和棋子
-- **原生 JavaScript**：无任何框架依赖
-- **Web Worker**：多线程 AI 计算
-- **LocalStorage**：保存最佳记录
-
-### AI 算法架构
-
-```
-决策流程（按优先级）:
-┌─────────────────────────────┐
-│ 1️⃣ VCF 求解器（深度10）    │ ← 搜索活四/冲四必杀序列
-└─────────────────────────────┘
-          ↓ 未找到
-┌─────────────────────────────┐
-│ 2️⃣ VCT 求解器（深度8）     │ ← 搜索活三威胁序列
-└─────────────────────────────┘
-          ↓ 未找到
-┌─────────────────────────────┐
-│ 3️⃣ Minimax（深度6）        │ ← 传统启发式评估
-└─────────────────────────────┘
-```
-
-### 核心优化
-
-- ✅ **威胁模式识别**：精确识别活四、冲四、活三、眠三等 10+ 种模式
-- ✅ **智能剪枝**：分支因子从 50 降至 5
-- ✅ **置换表缓存**：避免重复计算
-- ✅ **迭代加深**：逐步增加搜索深度
-- ✅ **超时保护**：10 秒熔断机制
-
----
-
-## 📊 AI 强度对比
-
-| 场景 | 普通 Minimax | 硕神 AI（VCF/VCT） |
-|------|-------------|-------------------|
-| **活四局面** | 评分 1M，可能错过 | VCF 必杀，100% 找到 |
-| **冲四局面** | 评分 10K，容易漏 | VCF 必杀，100% 找到 |
-| **活三攻击** | 评分 50K，靠运气 | VCT 威胁序列，稳定找到 |
-| **搜索深度** | 6 层（~4 秒） | VCF 10 层（<1 秒） |
-| **分支因子** | 20-50 个走法 | VCF/VCT 仅 1-5 个威胁 |
-
----
-
-## 🎯 开发亮点
-
-### 1. 证明式搜索
-
-VCF/VCT 不是"猜测"最优解，而是**数学证明**必胜序列存在。
-
-### 2. 极致剪枝
-
-传统 Minimax 搜索所有合法走法，VCF/VCT 只搜索威胁和防守，性能提升 10 倍+。
-
-### 3. 递归验证
-
-确保对手的每个防守点都能被 AI 持续威胁，直到成五。
-
-### 4. 无缝集成
-
-VCF/VCT 作为前置检查器，失败后回退到 Minimax，保证 AI 永远有解。
-
----
-
-## 📁 项目结构
-
-```
+```text
 five-in-a-row/
-├── index.html          # 主游戏文件（包含所有逻辑）
-├── README.md           # 项目说明
-├── DEPLOY.md           # 部署指南
-├── PAGES_GUIDE.md      # GitHub Pages 使用指南
-└── PR_GUIDE.md         # 贡献指南
+├── index.html
+├── README.md
+├── README.zh-CN.md
+├── DEPLOY.md
+├── PAGES_GUIDE.md
+├── PR_GUIDE.md
+└── SIMPLE_DEPLOY.md
 ```
 
----
+## Implementation Notes
 
-## 🚀 部署到 GitHub Pages
+- Rendering uses HTML5 Canvas.
+- The UI is built with plain HTML and CSS.
+- The game logic is written in vanilla JavaScript.
+- The current AI is heuristic-based and intentionally lightweight.
 
-本项目已部署到 GitHub Pages，你也可以 Fork 后部署自己的版本：
+This is not a tournament-grade engine. It is a front-end-focused Gomoku project with a presentable interface and playable local opponent.
 
-1. **Fork 本仓库**
-2. **进入仓库设置** → Pages
-3. **选择分支** → `main` 或其他分支
-4. **选择根目录** → `/root`
-5. **保存** → 等待几分钟
-6. **访问** → `https://你的用户名.github.io/five-in-a-row/`
+## Deployment
 
-详细步骤见 [DEPLOY.md](./DEPLOY.md) 或 [PAGES_GUIDE.md](./PAGES_GUIDE.md)
+Because the project is static, you can deploy it to:
 
----
+- GitHub Pages
+- Netlify
+- Vercel static hosting
+- any basic file server
 
-## 🤝 贡献
+Repository deployment notes are available in:
 
-欢迎提交 Issue 和 Pull Request！
+- [`DEPLOY.md`](./DEPLOY.md)
+- [`PAGES_GUIDE.md`](./PAGES_GUIDE.md)
+- [`SIMPLE_DEPLOY.md`](./SIMPLE_DEPLOY.md)
 
-贡献指南请参考：[PR_GUIDE.md](./PR_GUIDE.md)
+## Contributing
 
----
+If you want to improve the UI, AI, or gameplay behavior, start with [`index.html`](./index.html). Contribution notes are in [`PR_GUIDE.md`](./PR_GUIDE.md).
 
-## 📜 许可证
+## Status
 
-MIT License - 自由使用、修改、分发
-
----
-
-## 👨‍💻 作者
-
-**开发于 2025 年**
-
-感谢 Gemini 提供的 VCF/VCT 算法思路灵感 💡
-
----
-
-## 🎮 开始挑战
-
-准备好了吗？
-
-👉 **[立即挑战硕神 AI](https://sure-will.github.io/five-in-a-row/)** 👈
-
-**警告**：这个 AI 非常强大，可能会让你怀疑人生 😈
-
----
-
-## 🌟 如果你喜欢这个项目
-
-- ⭐ 给个 Star
-- 🔀 Fork 一份
-- 🐛 提交 Issue
-- 💬 分享给朋友
-
-**让更多人感受硕神 AI 的强大！**
+The repository is currently oriented around a polished static front end. If you extend it further, keep the README aligned with the real implementation instead of aspirational features.

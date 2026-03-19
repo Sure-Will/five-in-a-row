@@ -1,142 +1,112 @@
-# GitHub Pull Request 合并详细步骤
+# Pull Request 协作指南
 
-## 📖 什么是 Pull Request？
+这份文档说明如何把工作分支的改动通过 Pull Request 合并到稳定分支。它不依赖某一个固定分支名，所以后续继续迭代时也能复用。
 
-Pull Request (PR) 就是把你在一个分支上的改动合并到另一个分支（通常是main主分支）的请求。
+## 什么情况下需要 PR
 
-## 🔍 详细操作步骤
+下面这些场景建议走 Pull Request：
 
-### 第一步：打开你的GitHub仓库
+- 你在单独的工作分支上开发
+- 你想先检查 diff 再合并
+- 你准备把临时分支整理进稳定分支
+- 你想保留一条更清晰的项目修改记录
 
-1. 在浏览器中访问：https://github.com/Sure-Will/five-in-a-row
-2. 你会看到仓库的主页
+如果你只是自己维护一个单分支仓库，也可以直接在同一个分支继续工作，不一定非要走 PR。
 
-### 第二步：找到 Pull requests 选项卡
+## 推荐分支角色
 
-1. 在页面顶部，你会看到几个选项卡：
-   ```
-   < > Code    Issues    Pull requests    Actions    Projects    Wiki    ...
-   ```
+- 工作分支：日常开发、实验性修改
+- 稳定分支：准备发布、准备给 GitHub Pages 使用
 
-2. **点击 "Pull requests"** 这个选项卡
-   - 它通常在 "Issues" 的右边
+常见做法是把工作分支合并到 `main`，但也可以合并到你自己的发布分支。
 
-### 第三步：创建新的 Pull Request
+## 创建 Pull Request 的基本流程
 
-1. 点击右上角的绿色按钮 **"New pull request"**
-   - 这个按钮通常很显眼，是绿色的
+1. 先把本地改动提交到工作分支
+2. 把工作分支推送到 GitHub
+3. 在 GitHub 仓库页面进入 `Pull requests`
+4. 点击 `New pull request`
+5. 选择：
+   - base: 目标分支
+   - compare: 你的工作分支
+6. 确认 diff 没问题
+7. 填写标题和说明
+8. 创建 PR
+9. 审查完成后执行合并
 
-2. 你会看到一个页面标题是 "Compare changes"
+## PR 标题怎么写
 
-### 第四步：选择要合并的分支
+标题最好直接说明结果，而不是过程。
 
-这一步很重要！你会看到两个下拉框：
+示例：
 
+- `Improve mobile layout for the Gomoku frontend`
+- `Rewrite project docs to match the current static implementation`
+- `Fix touch interaction on mobile devices`
+
+## PR 描述建议包含什么
+
+建议至少写这三块：
+
+1. 改了什么
+2. 为什么改
+3. 怎么验证
+
+一个足够实用的模板：
+
+```md
+## Summary
+
+- improve mobile layout
+- add touch interaction on the board
+- rewrite outdated markdown docs
+
+## Why
+
+The previous docs and UI behavior no longer matched the current project state.
+
+## Verification
+
+- opened the page locally with `python3 -m http.server 8080`
+- verified board init and move interaction
+- checked mobile-sized layout in browser responsive mode
 ```
-base: main  ←  compare: main
-```
 
-这里需要设置：
+## 合并前检查
 
-1. **左边的 base（目标分支）**：
-   - 点击 "base" 下拉框
-   - 选择 **main** （如果默认已经是 main，就不用改）
-   - 这是你要合并到的目标分支
+创建或合并 PR 前，建议看这几项：
 
-2. **右边的 compare（源分支）**：
-   - 点击 "compare" 下拉框
-   - 在列表中找到 **claude/implement-gomoku-game-011CUMZStsdSdAnwEkLNY6Mk**
-   - 点击选择这个分支
-   - 这是包含你所有改动的分支
+- 页面能不能正常打开
+- 棋盘和交互有没有回归
+- README 和实际实现是否一致
+- 部署相关说明是否仍然准确
+- GitHub Pages 需要的入口文件是否还在根目录
 
-3. 选择完成后，页面会显示：
-   ```
-   base: main  ←  compare: claude/implement-gomoku-game-011CUMZStsdSdAnwEkLNY6Mk
-   ```
+## 什么时候可以删除源分支
 
-4. 下面会显示所有的改动文件和差异
+如果这些条件都满足，通常可以删除：
 
-### 第五步：创建 Pull Request
+- 改动已经合并
+- 你不再需要继续在这个分支上开发
+- 稳定分支已经包含最终内容
 
-1. 点击绿色按钮 **"Create pull request"**
+如果这个分支还会继续承载后续工作，就先不要删。
 
-2. 填写 PR 信息：
-   - **标题**（Title）：可以填写类似 "添加五子棋游戏功能"
-   - **描述**（Description）：可以简单写一下做了什么，比如：
-     ```
-     - 实现完整的五子棋游戏
-     - 添加AI对战功能（简单、中等、困难三种难度）
-     - 支持双人对战模式
-     - 创建网页版，支持在线访问
-     ```
+## 如果没有稳定分支怎么办
 
-3. 再次点击绿色按钮 **"Create pull request"**
+如果仓库暂时只有一个工作分支，你可以先：
 
-### 第六步：合并 Pull Request
+1. 继续在当前分支完成改动
+2. 等准备上线时再创建稳定分支
+3. 再把当前内容合并或整理过去
 
-创建PR后，你会进入PR详情页面：
+这样比一开始就把临时分支写死在文档里更灵活。
 
-1. 向下滚动页面，找到底部的合并区域
+## 和 GitHub Pages 的关系
 
-2. 你会看到一个绿色的按钮 **"Merge pull request"**
-   - 如果看到的是 "Able to merge"（可以合并），那就太好了！
-   - 如果有冲突，会显示冲突提示
+Pull Request 本身不会自动让站点更新。真正影响线上内容的是：
 
-3. 点击 **"Merge pull request"** 按钮
+- 你最终把哪些代码放进了远端发布分支
+- GitHub Pages 当前指向哪个分支
 
-4. 会弹出一个确认框，点击 **"Confirm merge"**（确认合并）
-
-5. 合并成功后，你会看到：
-   - ✅ "Pull request successfully merged and closed"
-   - 紫色的 "Merged" 标签
-
-### 第七步：删除分支（可选）
-
-合并完成后，GitHub会提示你是否删除源分支：
-
-- 你会看到一个按钮 **"Delete branch"**
-- 可以点击删除（推荐），因为代码已经合并到main了
-- 也可以保留，看你的习惯
-
----
-
-## 🎯 快速参考
-
-如果你觉得上面太复杂，记住这个口诀：
-
-1. **Pull requests 选项卡**
-2. **New pull request 按钮**
-3. **compare 选择 claude/implement... 分支**
-4. **Create pull request**
-5. **Merge pull request**
-6. **Confirm merge**
-
----
-
-## ⚠️ 常见问题
-
-### Q1: 找不到我的分支？
-
-A: 在 compare 下拉框中，确保你看的是所有分支。有时候分支名字很长，需要仔细找。
-
-### Q2: 显示有冲突？
-
-A: 如果是第一次合并到空的main分支，通常不会有冲突。如果有冲突，我可以帮你解决。
-
-### Q3: main分支不存在？
-
-A: 有些仓库默认分支可能叫 "master"，选择你的默认分支就可以了。
-
----
-
-## 📺 需要视频演示吗？
-
-如果文字说明还是不够清楚，你可以：
-1. 在YouTube搜索 "GitHub Pull Request 教程"
-2. 或者告诉我哪一步不清楚，我可以更详细地解释
-
----
-
-## ✅ 完成后做什么？
-
-合并完成后，继续下一步启用GitHub Pages！
+也就是说，PR 是协作和审查机制，Pages 是发布机制，它们不是同一个东西。

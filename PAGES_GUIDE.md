@@ -1,192 +1,126 @@
-# GitHub Pages 启用详细步骤
+# GitHub Pages 详细说明
 
-在完成Pull Request合并后，按照以下步骤启用GitHub Pages。
+这份文档专门讲 GitHub Pages 的配置细节。如果你只想最快把页面发布出去，看 [`SIMPLE_DEPLOY.md`](./SIMPLE_DEPLOY.md) 即可。
 
-## 📖 什么是 GitHub Pages？
+## GitHub Pages 会发布什么
 
-GitHub Pages 可以把你的HTML文件变成一个在线网站，让任何人都可以通过网址访问，完全免费！
+对于这个仓库，GitHub Pages 会直接把你选择的分支根目录里的静态文件发布出去。
 
----
+因为项目入口是 [`index.html`](./index.html)，所以最关键的一点只有一个：
 
-## 🔍 详细操作步骤
+你在 Pages 设置里选中的那个分支，根目录必须包含 `index.html`。
 
-### 第一步：打开仓库设置
+## 建议的分支策略
 
-1. 在你的仓库主页 https://github.com/Sure-Will/five-in-a-row
+### 稳定方案
 
-2. 找到页面顶部的选项卡，点击最右边的 **"Settings"**（设置）
-   ```
-   < > Code    Issues    Pull requests    ...    Settings
-   ```
+使用一个长期稳定的发布分支，例如 `main`。
 
-3. 注意：Settings 选项卡只有仓库所有者才能看到
+适合：
 
-### 第二步：找到 Pages 设置
+- 你准备长期维护这个仓库
+- 你会继续迭代 UI 或 AI
+- 你希望工作分支和线上分支分离
 
-1. 进入 Settings 后，你会看到左侧有一个菜单栏
+### 临时方案
 
-2. 向下滚动左侧菜单，找到 **"Pages"** 选项
-   - 它通常在 "Code and automation" 部分
-   - 位置大概在中下部
+直接选择当前工作分支发布。
 
-3. **点击 "Pages"**
+适合：
 
-### 第三步：配置 GitHub Pages
+- 先把页面挂上去
+- 还没整理出稳定分支
+- 当前远端分支里已经有完整页面
 
-进入 Pages 页面后：
+## GitHub 网页端操作路径
 
-1. 你会看到 **"Source"** （源）部分
+1. 打开仓库主页
+2. 点击 `Settings`
+3. 在左侧菜单中进入 `Pages`
+4. 找到 Pages 的来源设置区域
+5. 选择：
+   - Branch: 你要发布的分支
+   - Folder: `/ (root)`
+6. 点击 `Save`
 
-2. 第一个下拉框（Branch）：
-   - 默认可能显示 "None"
-   - **点击这个下拉框**
-   - **选择 "main"** （或你的默认分支）
+如果界面更新过，GitHub 的文案可能写成 `Build and deployment`，但核心设置项不变。
 
-3. 第二个下拉框（Folder）：
-   - 会自动出现在 Branch 选择后
-   - **保持默认的 "/ (root)"**
-   - 意思是使用根目录的文件
+## 成功后的站点地址
 
-4. 点击旁边的蓝色按钮 **"Save"**（保存）
+项目仓库的 GitHub Pages 地址通常是：
 
-### 第四步：等待部署
-
-1. 保存后，页面顶部会出现一个蓝色提示框：
-   ```
-   ✅ Your site is ready to be published at https://sure-will.github.io/five-in-a-row/
-   ```
-
-2. **等待 1-3 分钟**，GitHub 会自动构建和部署你的网站
-
-3. 刷新页面，蓝色提示框会变成绿色：
-   ```
-   ✅ Your site is live at https://sure-will.github.io/five-in-a-row/
-   ```
-
-### 第五步：访问你的游戏
-
-1. 点击提示框中的链接，或直接在浏览器输入：
-   ```
-   https://sure-will.github.io/five-in-a-row/
-   ```
-
-2. 你应该能看到你的五子棋游戏了！
-
-3. 🎉 恭喜！现在你可以把这个网址分享给任何人了！
-
----
-
-## 🎯 完整配置示意
-
-在 Pages 设置页面，最终应该看到：
-
-```
-Source
-├─ Branch: main
-└─ Folder: / (root)
-[Save]
-
-✅ Your site is live at https://sure-will.github.io/five-in-a-row/
+```text
+https://<username>.github.io/<repo-name>/
 ```
 
----
+对这个仓库来说，格式是：
 
-## ⚠️ 常见问题
+```text
+https://sure-will.github.io/five-in-a-row/
+```
 
-### Q1: 找不到 Settings 选项卡？
+## 怎么确认它真的发布成功
 
-**A**: 只有仓库的所有者才能看到 Settings。确保：
-- 你已经登录GitHub
-- 你在自己的仓库页面（URL包含你的用户名）
+你可以从这几个地方确认：
 
-### Q2: 没有 "main" 分支选项？
+1. `Settings -> Pages` 页面会显示已发布状态
+2. 仓库的 `Actions` 里通常能看到 Pages 部署记录
+3. 直接访问站点地址，确认页面能加载
 
-**A**:
-- 确认你已经完成了 Pull Request 的合并
-- 检查你的默认分支名称，可能是 "master"
-- 选择包含 index.html 文件的分支
+## Pages 更新机制
 
-### Q3: 保存后看不到提示框？
+GitHub Pages 不是实时读取你本地文件，而是根据远端仓库重新部署。
 
-**A**:
-- 刷新页面
-- 检查是否选择了正确的分支
-- 确保分支中有 index.html 文件
+所以每次上线更新都必须满足：
 
-### Q4: 访问网址显示 404？
+1. 本地改动已经提交
+2. 改动已经推送到远端分支
+3. Pages 指向的就是这个远端分支
 
-**A**:
-- 等待 5-10 分钟再试（首次部署可能需要更长时间）
-- 确认 index.html 文件在仓库根目录
-- 在 Pages 设置中检查是否显示 "live"
+## 推荐的发布前检查
 
-### Q5: 仓库是私有的？
+上线前建议至少确认：
 
-**A**:
-- 免费账户的 GitHub Pages 只支持公开仓库
-- 需要将仓库设为 Public，或升级到 GitHub Pro
+- 页面能正常打开
+- `Initialize Sequence` 能启动对局
+- AI 先手逻辑正常
+- 玩家点击或触摸落子正常
+- 手机端没有明显布局错位
 
----
+本地快速验证命令：
 
-## 🔧 如果还是不行
+```bash
+cd five-in-a-row
+python3 -m http.server 8080
+```
 
-### 方法1：检查文件
-1. 在仓库主页点击 "Code" 选项卡
-2. 确认能看到 `index.html` 文件
-3. 点击它，确保内容正确
+## 常见问题
 
-### 方法2：查看部署状态
-1. 在仓库主页点击 "Actions" 选项卡
-2. 查看 "pages build and deployment" 的状态
-3. 如果显示红色 ❌，点击查看错误信息
+### 找不到 Settings
 
-### 方法3：重新部署
-1. 回到 Settings → Pages
-2. 将 Branch 改为 "None"，保存
-3. 再改回 "main"，保存
-4. 强制重新部署
+只有仓库所有者或有足够权限的协作者才能看到完整设置项。
 
----
+### 找不到 Pages
 
-## ✅ 成功的标志
+GitHub 后台布局会调整，但一般都在仓库设置页左侧菜单中。
 
-当一切正常时，你会看到：
+### Branch 选项里没有你想要的分支
 
-1. Pages 设置页面显示：
-   ```
-   ✅ Your site is live at https://sure-will.github.io/five-in-a-row/
-   ```
+通常是因为：
 
-2. Actions 页面显示绿色的 ✅
+- 这个分支还没有推到 GitHub
+- GitHub 还没刷新到最新状态
+- 你当前账号对仓库权限不够
 
-3. 访问网址能看到你的五子棋游戏
+### 选好了分支，还是打不开页面
 
----
+优先检查：
 
-## 📤 分享你的游戏
+- 站点入口文件是不是 `index.html`
+- 文件是不是在根目录
+- 部署是不是还在进行中
+- 浏览器是不是缓存了旧页面
 
-成功后，你可以：
+## 什么时候应该改成 `main`
 
-1. **复制链接**：
-   ```
-   https://sure-will.github.io/five-in-a-row/
-   ```
-
-2. **分享给朋友**：
-   - 微信/QQ 发送链接
-   - 社交媒体分享
-   - 邮件发送
-
-3. **添加到简历/作品集**：
-   - 这是一个可展示的项目！
-
----
-
-## 🎮 试试看
-
-现在打开链接试试：
-- 在电脑浏览器打开
-- 在手机浏览器打开
-- 都应该能正常玩游戏！
-
-有任何问题随时问我！
+如果你现在只是临时发布当前工作分支，后面最好还是整理成一个稳定发布分支，比如 `main`。这样仓库结构更清楚，文档也更容易长期维护。
